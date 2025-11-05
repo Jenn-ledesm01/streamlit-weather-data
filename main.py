@@ -259,6 +259,22 @@ with tab2:
             )
             
             st.altair_chart(chart_temp, use_container_width=True)
+
+        # Explicación de la hipótesis
+        st.subheader("Explicación de la hipótesis")
+        st.markdown("""
+        Se considera esta hipótesis como verdadera, ya que se puede apreciar en general que tanto las medianas como los
+        rangos intercuartílicos son menores en los días con lluvia que en los días sin lluvia.
+                    
+        Esta hipótesis fue muy informativa durante la exploración de los datos, ya que inicialmente no se consideraba importante
+        la estación. Un primer acercamiento a esta hipótesis parecía mostrar que estábamos equivocados, ya que no se había separado
+        por estaciones y los días lluviosos tenían temperaturas aparentemente mayores. Sin embargo, un anális del contexto meteorológico nos llevó
+        a determinar que la mayor cantidad de días de lluvia se daban en verano, y en esa estación las temperaturas son en promedio
+        más elevadas que el resto. Este detalle estaba sesgando nuestros gráficos.
+                    
+        Al tener esto en cuenta, se separó a los gráficos por estación, confirmando tanto la hipótesis como la razón por el
+        sesgo inicial.
+        """)
         
         # Estadísticas por estación y condición
         st.subheader("📈 Estadísticas Descriptivas")
