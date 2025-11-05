@@ -87,19 +87,71 @@ with tab1:
                     # Cargar el modelo
                     model = joblib.load("model_output/gradient_boosting_weather_model.pkl")
 
-                    # Predicción (nombre exacto de la clase)
+                    # ================= PREDICCIÓN Y PROBABILIDADES =================
                     pred = model.predict(X)[0]
+                    probs = model.predict_proba(X)[0]
+                    clases = model.classes_
 
-                    # Mostrar resultado
+                    # Mostrar resultado principal destacado
                     st.subheader("🌦️ Resultado de la predicción:")
+
                     if pred.lower() == "rain":
-                        st.success("🌧️ Predicción: **Rain**")
+                        st.markdown(
+                            "<div style='background-color:#D0E8FF; padding:15px; border-radius:10px; text-align:center;'>"
+                            "<h2 style='color:#007BFF;'>🌧️ Predicción más probable: <b>Rain</b></h2>"
+                            "</div>",
+                            unsafe_allow_html=True,
+                        )
                     elif pred.lower() == "cloudy":
-                        st.info("☁️ Predicción: **Cloudy**")
+                        st.markdown(
+                            "<div style='background-color:#E8E8E8; padding:15px; border-radius:10px; text-align:center;'>"
+                            "<h2 style='color:#555;'>☁️ Predicción más probable: <b>Cloudy</b></h2>"
+                            "</div>",
+                            unsafe_allow_html=True,
+                        )
                     elif pred.lower() == "clear":
-                        st.warning("☀️ Predicción: **Clear**")
+                        st.markdown(
+                            "<div style='background-color:#FFF4C2; padding:15px; border-radius:10px; text-align:center;'>"
+                            "<h2 style='color:#E0A800;'>☀️ Predicción más probable: <b>Clear</b></h2>"
+                            "</div>",
+                            unsafe_allow_html=True,
+                        )
                     else:
-                        st.write(f"Predicción desconocida: {pred}")
+                        st.markdown(
+                            f"<div style='background-color:#F8F9FA; padding:15px; border-radius:10px; text-align:center;'>"
+                            f"<h2>🔍 Predicción más probable: <b>{pred}</b></h2>"
+                            "</div>",
+                            unsafe_allow_html=True,
+                        )
+
+                    # ================= GRÁFICO DE TORTA INTERACTIVO =================
+                    st.markdown("### 📊 Distribución de probabilidades")
+
+                    # Crear DataFrame con las probabilidades
+                    df_probs = pd.DataFrame({
+                        "Condición": clases,
+                        "Probabilidad": np.round(probs * 100, 2)
+                    })
+
+                    # Crear gráfico de torta (pie chart) con Altair
+                    chart = (
+                        alt.Chart(df_probs)
+                        .mark_arc(innerRadius=50)
+                        .encode(
+                            theta=alt.Theta("Probabilidad:Q", title="Probabilidad (%)"),
+                            color=alt.Color("Condición:N", legend=alt.Legend(title="Condición climática")),
+                            tooltip=[
+                                alt.Tooltip("Condición:N", title="Condición"),
+                                alt.Tooltip("Probabilidad:Q", title="Probabilidad (%)")
+                            ]
+                        )
+                        .properties(width=400, height=400)
+                        .interactive()  # permite zoom y hover
+                    )
+
+                    # Mostrar el gráfico
+                    st.altair_chart(chart, use_container_width=True)
+
 
                     # Mostrar datos usados
                     with st.expander("📊 Ver datos usados para la predicción"):
