@@ -114,13 +114,20 @@ with tab2:
     
     st.write("Genera gráficos interactivos usando los datos históricos del clima en Mendoza.")
     
+    # Inicializar session_state si no existe
+    if 'datos_procesados' not in st.session_state:
+        st.session_state.datos_procesados = None
+        st.session_state.df_dias = None
+        st.session_state.orden_estaciones = None
+    
     # Botón para generar gráficos
     if st.button("🎨 Generar Gráficos"):
         try:
             # Cargar datos desde el archivo local
             df = pd.read_csv("joined_weather_data.csv")
-        except e:
-            st.write("Error al cargar el archivo csv: " + e)
+        except Exception as e:
+            st.error(f"Error al cargar el archivo csv: {e}")
+            st.stop()
         
         # Convertir datetime_completo a formato datetime
         if 'datetime_completo' in df.columns:
@@ -132,286 +139,200 @@ with tab2:
         with st.expander("👀 Ver muestra de datos"):
             st.dataframe(df.head(10))
         
-        # Crear categoría de condición climática
-        def categorizar_clima(conditions):
-            if pd.isna(conditions):
-                return 'Desconocido'
-            conditions_lower = str(conditions).lower()
-            if 'rain' in conditions_lower or 'lluvia' in conditions_lower:
-                return 'Lluvia'
-            elif 'storm' in conditions_lower or 'tormenta' in conditions_lower:
-                return 'Tormenta'
-            elif 'clear' in conditions_lower or 'despejado' in conditions_lower:
-                return 'Despejado'
-            elif 'cloud' in conditions_lower or 'nublado' in conditions_lower:
-                return 'Nublado'
-            else:
-                return 'Otro'
-
-        if 'conditions' in df.columns:
-            df['categoria_clima'] = df['conditions'].apply(categorizar_clima)
+        # ========== PREPROCESAMIENTO: ESTACIONES Y CONDICIONES ==========
         
-        # ========== VISUALIZACIÓN 1: Comparación de Temperaturas ==========
+        # Función para obtener estación
+        def obtener_estacion(fecha):
+            mes = fecha.month
+            if mes in [12, 1, 2]:
+                return 'Verano'
+            elif mes in [3, 4, 5]:
+                return 'Otoño'
+            elif mes in [6, 7, 8]:
+                return 'Invierno'
+            else:
+                return 'Primavera'
+        
+        # Crear columna de día (sin hora)
+        df['dia'] = df['datetime_completo'].dt.date
+        df['dia'] = pd.to_datetime(df['dia'])
+        df['estacion'] = df['dia'].apply(obtener_estacion)
+        
+        # Detectar lluvia por hora
+        lluvia_keywords = [
+            'Rain', 'Drizzle', 'Showers', 'Thunderstorm',
+            'Precipitation', 'Rain And Snow', 'Drizzle/Rain'
+        ]
+        df['lluvia_hora'] = df['conditions'].str.contains('|'.join(lluvia_keywords), case=False, na=False)
+        
+        # Agregación diaria para temperaturas
+        df_dias = (
+            df.groupby(['dia', 'estacion'], as_index=False)
+            .agg({
+                'temp': ['max', 'min', 'mean', 'std'],
+                'lluvia_hora': 'any'
+            })
+        )
+        
+        # Aplanar nombres de columnas
+        df_dias.columns = ['dia', 'estacion', 'temp_max_dia', 'temp_min_dia', 'temp_avg_dia', 'temp_std_dia', 'lluvia_dia']
+        
+        # Crear condición_dia categórica
+        df_dias['condicion_dia'] = df_dias['lluvia_dia'].map({False: 'Seco', True: 'Lluvioso'})
+        
+        # Orden de estaciones y condiciones
+        orden_estaciones = ['Verano', 'Otoño', 'Invierno', 'Primavera']
+        df_dias['estacion'] = pd.Categorical(df_dias['estacion'], categories=orden_estaciones, ordered=True)
+        df_dias['condicion_dia'] = pd.Categorical(df_dias['condicion_dia'], categories=['Seco', 'Lluvioso'], ordered=True)
+        
+        # Guardar en session_state
+        st.session_state.datos_procesados = True
+        st.session_state.df_dias = df_dias
+        st.session_state.orden_estaciones = orden_estaciones
+    
+    # Mostrar visualizaciones solo si los datos han sido procesados
+    if st.session_state.datos_procesados and st.session_state.df_dias is not None:
+        df_dias = st.session_state.df_dias
+        orden_estaciones = st.session_state.orden_estaciones
+        
+        # ========== VISUALIZACIÓN 1: Temperatura Máxima por Estación ==========
         st.markdown("---")
-        st.header("1️⃣ Comparación de Temperaturas según Condición Climática")
+        st.header("1️⃣ Comparación de Temperaturas según Condición Climática y Estación")
         
         st.markdown("""
         **Hipótesis:** Los días con lluvia tienen temperaturas máximas, mínimas y promedio menores que días secos.
+        Análisis desagregado por estaciones del año.
         """)
         
-        if 'categoria_clima' in df.columns and 'temp' in df.columns:
-            # Selector interactivo de categorías
-            categorias_disponibles = df['categoria_clima'].unique().tolist()
-            categorias_seleccionadas = st.multiselect(
-                'Seleccione condición(es) climática(s):',
-                options=categorias_disponibles,
-                default=categorias_disponibles,
-                key='categorias_viz1'
-            )
+        # Selector de tipo de temperatura (fuera del bloque del botón)
+        tipo_temp = st.selectbox(
+            'Seleccione el tipo de temperatura:',
+            options=['Temperatura Máxima', 'Temperatura Mínima', 'Temperatura Promedio'],
+            key='tipo_temp_selector'
+        )
+        
+        # Mapear selección a columna y color
+        temp_config = {
+            'Temperatura Máxima': {'col': 'temp_max_dia', 'color': 'Reds', 'title': 'Temp. máxima'},
+            'Temperatura Mínima': {'col': 'temp_min_dia', 'color': 'Blues', 'title': 'Temp. mínima'},
+            'Temperatura Promedio': {'col': 'temp_avg_dia', 'color': 'Greens', 'title': 'Temp. promedio'}
+        }
+        
+        config = temp_config[tipo_temp]
+        
+        # Crear gráficos individuales por estación (uno debajo del otro)
+        for estacion in orden_estaciones:
+            df_estacion = df_dias[df_dias['estacion'] == estacion]
             
-            df_filtered = df[df['categoria_clima'].isin(categorias_seleccionadas)]
-            
-            # Crear gráfico con estadísticas
-            base = alt.Chart(df_filtered).encode(
-                x=alt.X('categoria_clima:N', 
-                        title='Condición Climática',
-                        axis=alt.Axis(labelAngle=-15)),
-                color=alt.Color('categoria_clima:N',
-                                title='Condición',
-                                scale=alt.Scale(scheme='tableau10'))
-            )
-            
-            # Boxplot para temperatura
-            boxplot = base.mark_boxplot(size=40, opacity=0.7).encode(
-                y=alt.Y('temp:Q', 
+            chart_temp = alt.Chart(df_estacion).mark_boxplot(size=60, opacity=0.8).encode(
+                x=alt.X('condicion_dia:N', 
+                        title='Condición del día',
+                        axis=alt.Axis(labelAngle=0)),
+                y=alt.Y(f'{config["col"]}:Q', 
                         title='Temperatura (°C)',
                         scale=alt.Scale(zero=False)),
+                color=alt.Color('condicion_dia:N',
+                                title='Condición',
+                                scale=alt.Scale(
+                                    domain=['Seco', 'Lluvioso'],
+                                    range=['#E74C3C', '#3498DB']
+                                )),
                 tooltip=[
-                    alt.Tooltip('categoria_clima:N', title='Condición'),
-                    alt.Tooltip('mean(temp):Q', title='Temp. Media', format='.1f'),
-                    alt.Tooltip('median(temp):Q', title='Mediana', format='.1f')
+                    alt.Tooltip('condicion_dia:N', title='Condición'),
+                    alt.Tooltip(f'mean({config["col"]}):Q', title='Media', format='.1f'),
+                    alt.Tooltip(f'median({config["col"]}):Q', title='Mediana', format='.1f'),
+                    alt.Tooltip('count():Q', title='N° días')
                 ]
-            )
-            
-            # Puntos individuales
-            points = base.mark_circle(size=30, opacity=0.3).encode(
-                y=alt.Y('temp:Q'),
-                xOffset='jitter:Q',
-                tooltip=[
-                    alt.Tooltip('datetime_completo:T', title='Fecha', format='%Y-%m-%d'),
-                    alt.Tooltip('categoria_clima:N', title='Condición'),
-                    alt.Tooltip('temp:Q', title='Temperatura', format='.1f'),
-                    alt.Tooltip('feelslike:Q', title='Sensación', format='.1f'),
-                    alt.Tooltip('precipprob:Q', title='Prob. Precip.', format='.0f')
-                ] if 'feelslike' in df.columns and 'precipprob' in df.columns else [
-                    alt.Tooltip('datetime_completo:T', title='Fecha', format='%Y-%m-%d'),
-                    alt.Tooltip('categoria_clima:N', title='Condición'),
-                    alt.Tooltip('temp:Q', title='Temperatura', format='.1f')
-                ]
-            ).transform_calculate(
-                jitter='sqrt(-2*log(random()))*cos(2*PI*random())*8'
-            )
-            
-            chart1 = (boxplot + points).properties(
-                width=700,
-                height=400,
-                title='Distribución de Temperatura según Condición Climática'
+            ).properties(
+                width=600,
+                height=300,
+                title=f'{config["title"]} - {estacion}'
             ).configure_axis(
                 labelFontSize=12,
-                titleFontSize=14
+                titleFontSize=13
             ).configure_legend(
                 labelFontSize=12,
                 titleFontSize=13
             ).configure_title(
-                fontSize=16,
+                fontSize=15,
                 anchor='start'
             )
             
-            st.altair_chart(chart1, use_container_width=True)
-            
-            # Mostrar estadísticas descriptivas
-            st.subheader("📈 Estadísticas de Temperatura por Condición")
-            stats_temp = df.groupby('categoria_clima')['temp'].agg([
-                ('Temperatura Media', 'mean'),
-                ('Desv. Estándar', 'std'),
-                ('Mínima', 'min'),
-                ('Máxima', 'max'),
-                ('N° Días', 'count')
-            ]).round(2)
-            st.dataframe(stats_temp, use_container_width=True)
+            st.altair_chart(chart_temp, use_container_width=True)
         
-        # ========== VISUALIZACIÓN 2: Variabilidad de Temperatura ==========
+        # Estadísticas por estación y condición
+        st.subheader("📈 Estadísticas Descriptivas")
+        
+        stats_temp = df_dias.groupby(['estacion', 'condicion_dia'])[config['col']].agg([
+            ('Media', 'mean'),
+            ('Mediana', 'median'),
+            ('Desv.Std', 'std'),
+            ('Mínima', 'min'),
+            ('Máxima', 'max'),
+            ('N° Días', 'count')
+        ]).round(2)
+        
+        st.dataframe(stats_temp, use_container_width=True)
+        
+        # ========== VISUALIZACIÓN 2: Variabilidad de Temperatura por Estación ==========
         st.markdown("---")
-        st.header("2️⃣ Variabilidad de Temperatura según Condición Climática")
+        st.header("2️⃣ Variabilidad de Temperatura según Condición Climática y Estación")
         
         st.markdown("""
         **Hipótesis:** Los días con lluvia o tormenta tienen menor variabilidad de temperatura que días despejados.
+        Análisis de la desviación estándar diaria por estaciones.
         """)
         
-        if 'categoria_clima' in df.columns and 'temp' in df.columns and 'feelslike' in df.columns:
-            # Calcular diferencia entre sensación térmica y temperatura real
-            df['diferencia_sensacion'] = abs(df['temp'] - df['feelslike'])
+        # Gráfico de violin plots por estación (uno debajo del otro)
+        for estacion in orden_estaciones:
+            df_estacion = df_dias[df_dias['estacion'] == estacion]
             
-            # Gráfico de barras con variabilidad
-            base_var = alt.Chart(df).encode(
-                x=alt.X('categoria_clima:N', 
-                        title='Condición Climática',
-                        axis=alt.Axis(labelAngle=-15)),
-                color=alt.Color('categoria_clima:N',
+            chart_var = alt.Chart(df_estacion).transform_density(
+                density='temp_std_dia',
+                groupby=['condicion_dia'],
+                as_=['temp_std_dia', 'density']
+            ).mark_area(opacity=0.7, orient='horizontal').encode(
+                x=alt.X('condicion_dia:N',
+                        title='Condición del día',
+                        axis=alt.Axis(labelAngle=0)),
+                y=alt.Y('temp_std_dia:Q',
+                        title='Desviación estándar (°C)',
+                        scale=alt.Scale(zero=False)),
+                color=alt.Color('condicion_dia:N',
                                 title='Condición',
-                                scale=alt.Scale(scheme='tableau10'))
-            )
-            
-            # Barras de variabilidad promedio
-            bars = base_var.mark_bar(opacity=0.7, size=50).encode(
-                y=alt.Y('mean(diferencia_sensacion):Q',
-                        title='Diferencia Promedio Temp - Sensación (°C)',
-                        scale=alt.Scale(zero=True)),
+                                scale=alt.Scale(
+                                    domain=['Seco', 'Lluvioso'],
+                                    range=['#E74C3C', '#3498DB']
+                                )),
                 tooltip=[
-                    alt.Tooltip('categoria_clima:N', title='Condición'),
-                    alt.Tooltip('mean(diferencia_sensacion):Q', title='Diferencia Promedio', format='.2f'),
-                    alt.Tooltip('count():Q', title='N° de días')
+                    alt.Tooltip('condicion_dia:N', title='Condición')
                 ]
-            )
-            
-            # Error bars
-            error_bars = base_var.mark_errorbar(extent='stdev', ticks=True).encode(
-                y=alt.Y('diferencia_sensacion:Q')
-            )
-            
-            # Selección interactiva
-            brush = alt.selection_interval(encodings=['x'])
-            
-            chart2_top = (bars + error_bars).encode(
-                opacity=alt.condition(brush, alt.value(1), alt.value(0.3))
-            ).add_params(brush).properties(
-                width=700,
-                height=350,
-                title='Variabilidad de Sensación Térmica por Condición Climática'
-            )
-            
-            # Gráfico de dispersión temporal detallado
-            scatter_tooltip = [
-                alt.Tooltip('datetime_completo:T', title='Fecha', format='%Y-%m-%d'),
-                alt.Tooltip('categoria_clima:N', title='Condición'),
-                alt.Tooltip('temp:Q', title='Temperatura', format='.1f'),
-                alt.Tooltip('feelslike:Q', title='Sensación', format='.1f'),
-                alt.Tooltip('diferencia_sensacion:Q', title='Diferencia', format='.1f')
-            ]
-            
-            if 'humidity' in df.columns:
-                scatter_tooltip.append(alt.Tooltip('humidity:Q', title='Humedad', format='.0f'))
-            if 'windspeed' in df.columns:
-                scatter_tooltip.append(alt.Tooltip('windspeed:Q', title='Viento', format='.1f'))
-            
-            scatter = alt.Chart(df).mark_circle(size=60).encode(
-                x=alt.X('datetime_completo:T', title='Fecha'),
-                y=alt.Y('diferencia_sensacion:Q', title='Diferencia (°C)'),
-                color=alt.Color('categoria_clima:N', scale=alt.Scale(scheme='tableau10')),
-                tooltip=scatter_tooltip
-            ).transform_filter(
-                brush
             ).properties(
-                width=700,
-                height=200,
-                title='Detalle Temporal de Días Seleccionados'
-            )
-            
-            chart2 = alt.vconcat(chart2_top, scatter).configure_axis(
+                width=600,
+                height=300,
+                title=f'Variabilidad diaria de temperatura - {estacion}'
+            ).configure_axis(
                 labelFontSize=12,
-                titleFontSize=14
+                titleFontSize=13
             ).configure_legend(
                 labelFontSize=12,
                 titleFontSize=13
             ).configure_title(
-                fontSize=16,
+                fontSize=15,
                 anchor='start'
             )
             
-            st.altair_chart(chart2, use_container_width=True)
-            
-            # Estadísticas de variabilidad
-            st.subheader("📊 Análisis de Variabilidad")
-            
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                st.markdown("**Diferencia Temp - Sensación por Condición**")
-                stats_var = df.groupby('categoria_clima')['diferencia_sensacion'].agg([
-                    ('Promedio', 'mean'),
-                    ('Desv. Estándar', 'std'),
-                    ('Mínima', 'min'),
-                    ('Máxima', 'max')
-                ]).round(2)
-                st.dataframe(stats_var, use_container_width=True)
-            
-            with col2:
-                if 'humidity' in df.columns and 'windspeed' in df.columns:
-                    st.markdown("**Humedad y Viento por Condición**")
-                    stats_factores = df.groupby('categoria_clima')[['humidity', 'windspeed']].agg([
-                        ('Media', 'mean'),
-                        ('Desv.Std', 'std')
-                    ]).round(2)
-                    st.dataframe(stats_factores, use_container_width=True)
+            st.altair_chart(chart_var, use_container_width=True)
         
-        # ========== VISUALIZACIÓN 3: Matriz de Correlación ==========
-        st.markdown("---")
-        st.header("3️⃣ Correlación entre Variables Climáticas")
+        # Estadísticas de variabilidad
+        st.subheader("📊 Análisis de Variabilidad")
         
-        # Seleccionar variables disponibles
-        vars_posibles = ['temp', 'feelslike', 'humidity', 'precipprob', 'windspeed', 'pressure', 'cloudcover']
-        vars_interes = [var for var in vars_posibles if var in df.columns]
+        stats_var = df_dias.groupby(['estacion', 'condicion_dia'])['temp_std_dia'].agg([
+            ('Media Desv.Std', 'mean'),
+            ('Mediana Desv.Std', 'median'),
+            ('Mínima Desv.Std', 'min'),
+            ('Máxima Desv.Std', 'max'),
+            ('N° Días', 'count')
+        ]).round(2)
         
-        if len(vars_interes) >= 2:
-            df_corr = df[vars_interes].corr()
-            
-            # Convertir a formato largo para Altair
-            df_corr_long = df_corr.reset_index().melt(id_vars='index')
-            df_corr_long.columns = ['Variable 1', 'Variable 2', 'Correlación']
-            
-            heatmap = alt.Chart(df_corr_long).mark_rect().encode(
-                x=alt.X('Variable 1:N', title=None),
-                y=alt.Y('Variable 2:N', title=None),
-                color=alt.Color('Correlación:Q', 
-                                scale=alt.Scale(scheme='redblue', domain=[-1, 1]),
-                                title='Correlación'),
-                tooltip=[
-                    alt.Tooltip('Variable 1:N'),
-                    alt.Tooltip('Variable 2:N'),
-                    alt.Tooltip('Correlación:Q', format='.3f')
-                ]
-            ).properties(
-                width=500,
-                height=500,
-                title='Matriz de Correlación entre Variables Climáticas'
-            )
-            
-            # Añadir valores de texto
-            text = heatmap.mark_text(baseline='middle').encode(
-                text=alt.Text('Correlación:Q', format='.2f'),
-                color=alt.condition(
-                    alt.datum.Correlación > 0.5,
-                    alt.value('white'),
-                    alt.value('black')
-                )
-            )
-            
-            chart3 = (heatmap + text).configure_axis(
-                labelFontSize=11,
-                labelAngle=-45
-            ).configure_legend(
-                labelFontSize=12,
-                titleFontSize=13
-            ).configure_title(
-                fontSize=16,
-                anchor='start'
-            )
-            
-            st.altair_chart(chart3, use_container_width=True)
-            
-            st.markdown("""
-            **Interpretación:** Esta matriz muestra las correlaciones entre diferentes variables climáticas,
-            lo que puede ayudar a entender las relaciones subyacentes entre temperatura, humedad, precipitación y otras variables.
-            """)
-        else:
-            st.warning("No hay suficientes variables numéricas para crear la matriz de correlación.")
+        st.dataframe(stats_var, use_container_width=True)
