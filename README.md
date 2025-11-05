@@ -36,3 +36,5 @@ pip install -r requirements.txt
 ```bash
 streamlit run main.py
 ```
+o, si da error, usar 
+python -m streamlit run main.py

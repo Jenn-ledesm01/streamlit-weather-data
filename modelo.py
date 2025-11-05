@@ -1,5 +1,5 @@
 import os
-import poplib
+import joblib
 import numpy as np
 import pandas as pd
 from collections import Counter
@@ -212,6 +212,11 @@ output_dir = "model_output"
 os.makedirs(output_dir, exist_ok=True)
 
 model_path = os.path.join(output_dir, "gradient_boosting_weather_model.pkl")
-poplib.dump(pipeline, model_path)
+joblib.dump(pipeline, model_path)
 
 print(f"\n✅ Modelo guardado correctamente en: {model_path}")
+
+import joblib
+
+model = joblib.load("model_output\gradient_boosting_weather_model.pkl")
+print(model.feature_names_in_)
