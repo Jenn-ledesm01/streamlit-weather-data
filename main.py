@@ -284,7 +284,7 @@ with tab2:
             st.altair_chart(chart_temp, use_container_width=True)
 
         # Explicación de la hipótesis
-        st.subheader("Explicación de la hipótesis")
+        st.subheader("Explicación de la hipótesis 1")
         st.markdown("""
         Se considera esta hipótesis como verdadera, ya que se puede apreciar en general que tanto las medianas como los
         rangos intercuartílicos son menores en los días con lluvia que en los días sin lluvia.
@@ -420,6 +420,17 @@ with tab2:
                 )
                 
                 st.altair_chart(chart_hist, use_container_width=True)
+
+                # Explicación de la hipótesis
+                st.subheader("Explicación de la hipótesis 2")
+                st.markdown("""
+                En esta hipótesis, se buscaba comparar la temperatura máxima entre días Despejados y Nublados.
+                Se planteó que la temperatura máxima sería significativamente mayor en días Despejados frente a los Nublados.
+                
+                Si bien un análisis de los datos demostró que la hipótesis no se cumple necesariamente,
+                un análisis de las frecuencias demostró que las temperaturas máximas altas son mucho más frecuentes en días Despejados
+                frente a días Nublados.
+                """)
                 
             else:
                 st.warning("No se encontraron suficientes datos para días Clear o Cloudy.")
