@@ -300,18 +300,18 @@ with tab2:
         """)
         
         # Estadísticas por estación y condición
-        st.subheader("📈 Estadísticas Descriptivas")
+        # st.subheader("📈 Estadísticas Descriptivas")
         
-        stats_temp = df_dias.groupby(['estacion', 'condicion_dia'])[config['col']].agg([
-            ('Media', 'mean'),
-            ('Mediana', 'median'),
-            ('Desv.Std', 'std'),
-            ('Mínima', 'min'),
-            ('Máxima', 'max'),
-            ('N° Días', 'count')
-        ]).round(2)
+        #stats_temp = df_dias.groupby(['estacion', 'condicion_dia'])[config['col']].agg([
+        #    ('Media', 'mean'),
+        #    ('Mediana', 'median'),
+        #    ('Desv.Std', 'std'),
+        #    ('Mínima', 'min'),
+        #    ('Máxima', 'max'),
+        #    ('N° Días', 'count')
+        #]).round(2)
         
-        st.dataframe(stats_temp, use_container_width=True)
+        #st.dataframe(stats_temp, use_container_width=True)
         
         # ========== VISUALIZACIÓN 2: Temperatura Máxima Clear vs Cloudy ==========
         st.markdown("---")
