@@ -117,7 +117,9 @@ with tab2:
     # Inicializar session_state si no existe
     if 'datos_procesados' not in st.session_state:
         st.session_state.datos_procesados = None
+        st.session_state.df_original = None
         st.session_state.df_dias = None
+        st.session_state.df_dias_var = None
         st.session_state.orden_estaciones = None
     
     # Botón para generar gráficos
@@ -165,7 +167,7 @@ with tab2:
         ]
         df['lluvia_hora'] = df['conditions'].str.contains('|'.join(lluvia_keywords), case=False, na=False)
         
-        # Agregación diaria para temperaturas
+        # Agregación diaria para temperaturas (primera visualización)
         df_dias = (
             df.groupby(['dia', 'estacion'], as_index=False)
             .agg({
@@ -185,9 +187,30 @@ with tab2:
         df_dias['estacion'] = pd.Categorical(df_dias['estacion'], categories=orden_estaciones, ordered=True)
         df_dias['condicion_dia'] = pd.Categorical(df_dias['condicion_dia'], categories=['Seco', 'Lluvioso'], ordered=True)
         
+        # Agregación diaria para variabilidad (igual que en Colab)
+        df_dias_var = (
+            df.groupby(['dia', 'estacion'], as_index=False)
+            .agg({
+                'temp': 'std',
+                'lluvia_hora': 'any'
+            })
+            .rename(columns={'temp': 'temp_std_dia', 'lluvia_hora': 'lluvia_dia'})
+        )
+        
+        # Mapear a etiquetas legibles y tipo categoría
+        df_dias_var['condicion_dia'] = pd.Categorical(
+            df_dias_var['lluvia_dia'].map({False: 'Seco', True: 'Lluvioso'}),
+            categories=['Seco', 'Lluvioso'],
+            ordered=True
+        )
+        
+        df_dias_var['estacion'] = pd.Categorical(df_dias_var['estacion'], categories=orden_estaciones, ordered=True)
+        
         # Guardar en session_state
         st.session_state.datos_procesados = True
+        st.session_state.df_original = df.copy()  # Guardar dataframe original para la nueva visualización
         st.session_state.df_dias = df_dias
+        st.session_state.df_dias_var = df_dias_var
         st.session_state.orden_estaciones = orden_estaciones
     
     # Mostrar visualizaciones solo si los datos han sido procesados
@@ -290,65 +313,113 @@ with tab2:
         
         st.dataframe(stats_temp, use_container_width=True)
         
-        # ========== VISUALIZACIÓN 2: Variabilidad de Temperatura por Estación ==========
+        # ========== VISUALIZACIÓN 2: Temperatura Máxima Clear vs Cloudy ==========
         st.markdown("---")
-        st.header("2️⃣ Variabilidad de Temperatura según Condición Climática y Estación")
+        st.header("2️⃣ Comparación de Temperatura Máxima: Clear vs Cloudy")
         
         st.markdown("""
-        **Hipótesis:** Los días con lluvia o tormenta tienen menor variabilidad de temperatura que días despejados.
-        Análisis de la desviación estándar diaria por estaciones.
+        **Hipótesis:** La temperatura máxima es significativamente mayor en días 'Clear' que en días 'Cloudy'.
         """)
         
-        # Gráfico de violin plots por estación (uno debajo del otro)
-        for estacion in orden_estaciones:
-            df_estacion = df_dias[df_dias['estacion'] == estacion]
+        # Obtener dataframe original
+        if 'df_original' in st.session_state and st.session_state.df_original is not None:
+            df_original = st.session_state.df_original.copy()
             
-            chart_var = alt.Chart(df_estacion).transform_density(
-                density='temp_std_dia',
-                groupby=['condicion_dia'],
-                as_=['temp_std_dia', 'density']
-            ).mark_area(opacity=0.7, orient='horizontal').encode(
-                x=alt.X('condicion_dia:N',
-                        title='Condición del día',
-                        axis=alt.Axis(labelAngle=0)),
-                y=alt.Y('temp_std_dia:Q',
-                        title='Desviación estándar (°C)',
-                        scale=alt.Scale(zero=False)),
-                color=alt.Color('condicion_dia:N',
-                                title='Condición',
-                                scale=alt.Scale(
-                                    domain=['Seco', 'Lluvioso'],
-                                    range=['#E74C3C', '#3498DB']
-                                )),
-                tooltip=[
-                    alt.Tooltip('condicion_dia:N', title='Condición')
-                ]
-            ).properties(
-                width=600,
-                height=300,
-                title=f'Variabilidad diaria de temperatura - {estacion}'
-            ).configure_axis(
-                labelFontSize=12,
-                titleFontSize=13
-            ).configure_legend(
-                labelFontSize=12,
-                titleFontSize=13
-            ).configure_title(
-                fontSize=15,
-                anchor='start'
-            )
+            # Crear columna de día si no existe
+            if 'dia' not in df_original.columns:
+                df_original['dia'] = pd.to_datetime(df_original['datetime_completo'].dt.date)
             
-            st.altair_chart(chart_var, use_container_width=True)
-        
-        # Estadísticas de variabilidad
-        st.subheader("📊 Análisis de Variabilidad")
-        
-        stats_var = df_dias.groupby(['estacion', 'condicion_dia'])['temp_std_dia'].agg([
-            ('Media Desv.Std', 'mean'),
-            ('Mediana Desv.Std', 'median'),
-            ('Mínima Desv.Std', 'min'),
-            ('Máxima Desv.Std', 'max'),
-            ('N° Días', 'count')
-        ]).round(2)
-        
-        st.dataframe(stats_var, use_container_width=True)
+            # Agregar por día y condición para obtener temperatura máxima diaria
+            # Primero determinar qué día tiene qué condición (tomar la condición más frecuente del día)
+            def obtener_condicion_dia(x):
+                modes = x.mode()
+                if len(modes) > 0:
+                    return modes[0]
+                else:
+                    return x.iloc[0] if len(x) > 0 else None
+            
+            df_dia_condicion = df_original.groupby('dia')['conditions'].agg(obtener_condicion_dia).reset_index()
+            df_dia_condicion.columns = ['dia', 'conditions']
+            
+            # Obtener temperatura máxima por día
+            df_temp_max = df_original.groupby('dia', as_index=False).agg({
+                'temp': 'max'
+            }).rename(columns={'temp': 'temp_max_dia'})
+            
+            # Combinar con condiciones
+            df_temp_max = df_temp_max.merge(df_dia_condicion, on='dia', how='left')
+            
+            # Filtrar datos para días Clear y Cloudy
+            dias_clear = df_temp_max[df_temp_max['conditions'] == 'Clear'].copy()
+            dias_cloudy = df_temp_max[df_temp_max['conditions'].str.contains('cloudy', case=False, na=False)].copy()
+            
+            if not dias_clear.empty and not dias_cloudy.empty:
+                # Crear columna de condición para el gráfico
+                dias_clear['condicion'] = 'Clear'
+                dias_cloudy['condicion'] = 'Cloudy'
+                
+                # Combinar datos para el gráfico
+                df_comparacion = pd.concat([dias_clear[['temp_max_dia', 'condicion']], 
+                                           dias_cloudy[['temp_max_dia', 'condicion']]], 
+                                          ignore_index=True)
+                
+                # Estadísticas descriptivas
+                st.subheader("📈 Estadísticas Descriptivas - Temperatura Máxima")
+                
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    st.markdown("**DÍAS CLEAR:**")
+                    st.write(f"Promedio: {dias_clear['temp_max_dia'].mean():.2f}°C")
+                    st.write(f"Mediana: {dias_clear['temp_max_dia'].median():.2f}°C")
+                    st.write(f"Mínimo: {dias_clear['temp_max_dia'].min():.2f}°C")
+                    st.write(f"Máximo: {dias_clear['temp_max_dia'].max():.2f}°C")
+                    st.write(f"N° días: {len(dias_clear)}")
+                
+                with col2:
+                    st.markdown("**DÍAS CLOUDY:**")
+                    st.write(f"Promedio: {dias_cloudy['temp_max_dia'].mean():.2f}°C")
+                    st.write(f"Mediana: {dias_cloudy['temp_max_dia'].median():.2f}°C")
+                    st.write(f"Mínimo: {dias_cloudy['temp_max_dia'].min():.2f}°C")
+                    st.write(f"Máximo: {dias_cloudy['temp_max_dia'].max():.2f}°C")
+                    st.write(f"N° días: {len(dias_cloudy)}")
+                
+                diferencia = dias_clear['temp_max_dia'].mean() - dias_cloudy['temp_max_dia'].mean()
+                st.markdown(f"**Diferencia de medias (Clear - Cloudy): {diferencia:.2f}°C**")
+                
+                # Gráfico de histogramas superpuestos
+                chart_hist = alt.Chart(df_comparacion).mark_bar(opacity=0.7).encode(
+                    x=alt.X('temp_max_dia:Q',
+                            bin=alt.Bin(maxbins=15),
+                            title='Temperatura Máxima (°C)'),
+                    y=alt.Y('count():Q', title='Frecuencia'),
+                    color=alt.Color('condicion:N',
+                                    title='Condición',
+                                    scale=alt.Scale(
+                                        domain=['Clear', 'Cloudy'],
+                                        range=['#FF8C00', '#808080']  # Naranja y gris
+                                    )),
+                    tooltip=[
+                        alt.Tooltip('condicion:N', title='Condición'),
+                        alt.Tooltip('temp_max_dia:Q', title='Temp. Máx (°C)', format='.1f'),
+                        alt.Tooltip('count():Q', title='Frecuencia')
+                    ]
+                ).properties(
+                    width=800,
+                    height=400,
+                    title='Distribución de Temperatura Máxima'
+                ).configure_axis(
+                    labelFontSize=12,
+                    titleFontSize=13
+                ).configure_legend(
+                    labelFontSize=12,
+                    titleFontSize=13
+                ).configure_title(
+                    fontSize=15,
+                    anchor='start'
+                )
+                
+                st.altair_chart(chart_hist, use_container_width=True)
+                
+            else:
+                st.warning("No se encontraron suficientes datos para días Clear o Cloudy.")
