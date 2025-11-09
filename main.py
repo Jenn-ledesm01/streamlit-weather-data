@@ -548,7 +548,7 @@ with tab2:
             
             # Predicción del modelo ML
             with col1:
-                st.markdown("### 🤖 Predicción del Modelo ML")
+                st.markdown("### 🤖 Predicción del modelo")
                 st.caption(f"Predicción para el {fecha_actual_str} usando datos del {fecha_ayer} (día-1)")
                 if pred.lower() == "rain":
                     st.markdown(
@@ -581,7 +581,7 @@ with tab2:
             
             # Predicción de la API
             with col2:
-                st.markdown("### 🌐 Datos Históricos de Visual Crossing API")
+                st.markdown("### 🌐 Datos históricos de Visual Crossing API")
                 st.caption(f"Condición climática histórica real del {fecha_actual_str}")
                 if pred_api.lower() == "rain":
                     st.markdown(
@@ -613,7 +613,7 @@ with tab2:
                     )
 
             # ================= GRÁFICO DE BARRAS INTERACTIVO =================
-            st.markdown("### 📊 Distribución de probabilidades del Modelo ML")
+            st.markdown("### 📊 Distribución de probabilidades del modelo")
 
             # Crear DataFrame con las probabilidades
             df_probs = pd.DataFrame({
