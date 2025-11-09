@@ -287,11 +287,7 @@ with tab1:
         st.error(f"Error al obtener datos o predecir: {e}")
 
 # ==================== TAB 2: VISUALIZACIONES ====================
-with tab2:
-    st.header("📊 Exploración de datos climáticos")
-    
-    st.write("Descubre patrones y tendencias del clima en Mendoza de forma visual e interactiva.")
-    
+with tab2:    
     # Inicializar session_state si no existe
     if 'datos_procesados' not in st.session_state:
         st.session_state.datos_procesados = None
@@ -379,28 +375,26 @@ with tab2:
         orden_estaciones = st.session_state.orden_estaciones
         
         # ========== SELECTOR DE VISUALIZACIÓN ==========
-        st.markdown("---")
         st.subheader("🎯 Selecciona qué información deseas explorar:")
         
         opcion = st.selectbox(
             "Elige una visualización:",
             [
-                "📅 1. Temperaturas Promedio por Mes",
-                "🌧️ 2. Días de Lluvia por Mes",
-                "☀️ 3. Distribución de Condiciones Climáticas",
-                "🌡️ 4. Temperatura vs Sensación Térmica",
-                "📊 5. Temperaturas Extremas del Año",
-                "💧 6. Relación Humedad y Temperatura",
-                "📈 7. Evolución de Temperatura Anual",
-                "🔥 8. Top 10 Días Más Calurosos y Fríos"
+                "Temperaturas promedio por mes",
+                "Días de lluvia por mes",
+                "Distribución de condiciones climáticas",
+                "Temperatura vs sensación térmica",
+                "Temperaturas extremas del año",
+                "Relación humedad y temperatura",
+                "Evolución de temperatura anual"
             ]
         )
         
         st.markdown("---")
         
         # ========== VISUALIZACIÓN 1: TEMPERATURAS PROMEDIO POR MES ==========
-        if "1. Temperaturas Promedio por Mes" in opcion:
-            st.header("📅 Temperaturas Promedio por Mes")
+        if "Temperaturas promedio por mes" in opcion:
+            st.header("📅 Temperaturas promedio por Mes")
             st.markdown("""
             **¿Qué muestra?** La temperatura promedio de cada mes del año en Mendoza.  
             **¿Para qué sirve?** Te ayuda a planificar viajes o actividades sabiendo qué meses son más calurosos o fríos.
@@ -455,8 +449,8 @@ with tab2:
             """)
         
         # ========== VISUALIZACIÓN 2: DÍAS DE LLUVIA POR MES ==========
-        elif "2. Días de Lluvia por Mes" in opcion:
-            st.header("🌧️ Días de Lluvia por Mes")
+        elif "Días de lluvia por mes" in opcion:
+            st.header("🌧️ Días de lluvia por mes")
             st.markdown("""
             **¿Qué muestra?** Cuántos días llovió en cada mes del año.  
             **¿Para qué sirve?** Ideal para planificar actividades al aire libre y evitar meses lluviosos.
@@ -506,8 +500,8 @@ with tab2:
             """)
         
         # ========== VISUALIZACIÓN 3: DISTRIBUCIÓN DE CONDICIONES CLIMÁTICAS ==========
-        elif "3. Distribución de Condiciones Climáticas" in opcion:
-            st.header("☀️ Distribución de Condiciones Climáticas por Estación")
+        elif "Distribución de condiciones climáticas" in opcion:
+            st.header("☀️ Distribución de condiciones climáticas por estación")
             st.markdown("""
             **¿Qué muestra?** La proporción de días despejados, nublados y lluviosos en cada estación del año.  
             **¿Para qué sirve?** Para entender cómo varía el clima según la estación.
@@ -574,7 +568,7 @@ with tab2:
             """)
         
         # ========== VISUALIZACIÓN 4: TEMPERATURA VS SENSACIÓN TÉRMICA ==========
-        elif "4. Temperatura vs Sensación Térmica" in opcion:
+        elif "Temperatura vs sensación térmica" in opcion:
             st.header("🌡️ Temperatura Real vs Sensación Térmica")
             st.markdown("""
             **¿Qué muestra?** Comparación entre la temperatura real y cómo realmente se siente (sensación térmica).  
@@ -643,8 +637,8 @@ with tab2:
             """)
         
         # ========== VISUALIZACIÓN 5: TEMPERATURAS EXTREMAS ==========
-        elif "5. Temperaturas Extremas del Año" in opcion:
-            st.header("📊 Comparación de Temperaturas Extremas")
+        elif "Temperaturas extremas del año" in opcion:
+            st.header("📊 Comparación de temperaturas extremas")
             st.markdown("""
             **¿Qué muestra?** Las temperaturas máximas y mínimas promedio de cada mes.  
             **¿Para qué sirve?** Para entender el rango de temperaturas que puedes esperar en cada época del año.
@@ -713,8 +707,8 @@ with tab2:
             """)
         
         # ========== VISUALIZACIÓN 6: HUMEDAD VS TEMPERATURA ==========
-        elif "6. Relación Humedad y Temperatura" in opcion:
-            st.header("💧 Relación entre Humedad y Temperatura")
+        elif "6. Relación humedad y temperatura" in opcion:
+            st.header("💧 Relación entre humedad y temperatura")
             st.markdown("""
             **¿Qué muestra?** Cómo se relaciona la humedad con la temperatura en diferentes estaciones.  
             **¿Para qué sirve?** Para entender por qué algunos días calurosos se sienten más "pesados" que otros.
@@ -757,8 +751,8 @@ with tab2:
             """)
         
         # ========== VISUALIZACIÓN 7: EVOLUCIÓN ANUAL ==========
-        elif "7. Evolución de Temperatura Anual" in opcion:
-            st.header("📈 Evolución de la Temperatura Durante el Año")
+        elif "Evolución de temperatura anual" in opcion:
+            st.header("📈 Evolución de la temperatura durante el año")
             st.markdown("""
             **¿Qué muestra?** Cómo varía la temperatura día a día a lo largo del año.  
             **¿Para qué sirve?** Para visualizar claramente las cuatro estaciones y sus transiciones.
@@ -806,100 +800,6 @@ with tab2:
             - Se observa claramente el patrón de las **cuatro estaciones**.  
             - La transición de **invierno a verano** es más gradual que la de verano a invierno.  
             - El área sombreada muestra la **amplitud térmica diaria** (diferencia entre máxima y mínima).
-            """)
-        
-        # ========== VISUALIZACIÓN 8: TOP 10 EXTREMOS ==========
-        elif "8. Top 10 Días Más Calurosos y Fríos" in opcion:
-            st.header("🔥 Top 10 Días Más Calurosos y Fríos")
-            st.markdown("""
-            **¿Qué muestra?** Los días con las temperaturas más extremas registradas.  
-            **¿Para qué sirve?** Información curiosa sobre los récords de temperatura en Mendoza.
-            """)
-            
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                st.subheader("🔥 Días Más Calurosos")
-                top_calurosos = df_dias.nlargest(10, 'temp_max_dia')[['dia', 'temp_max_dia', 'estacion']].reset_index(drop=True)
-                top_calurosos.index = top_calurosos.index + 1
-                top_calurosos.columns = ['Fecha', 'Temp. Máxima (°C)', 'Estación']
-                top_calurosos['Fecha'] = pd.to_datetime(top_calurosos['Fecha']).dt.strftime('%Y-%m-%d')
-                st.dataframe(top_calurosos, use_container_width=True)
-                
-                # Gráfico de barras horizontales
-                chart_calor = alt.Chart(top_calurosos.reset_index()).mark_bar(color='#E74C3C').encode(
-                    y=alt.Y('Fecha:N', title='Fecha', sort='-x'),
-                    x=alt.X('Temp. Máxima (°C):Q', title='Temperatura (°C)'),
-                    tooltip=[
-                        alt.Tooltip('Fecha:N', title='Fecha'),
-                        alt.Tooltip('Temp. Máxima (°C):Q', title='Temperatura', format='.1f'),
-                        alt.Tooltip('Estación:N', title='Estación')
-                    ]
-                ).properties(
-                    width=400,
-                    height=300
-                )
-                st.altair_chart(chart_calor, use_container_width=True)
-            with col2:
-                st.subheader("❄️ Días Más Fríos")
-                top_frios = df_dias.nsmallest(10, 'temp_min_dia')[['dia', 'temp_min_dia', 'estacion']].reset_index(drop=True)
-                top_frios.index = top_frios.index + 1
-                top_frios.columns = ['Fecha', 'Temp. Mínima (°C)', 'Estación']
-                top_frios['Fecha'] = pd.to_datetime(top_frios['Fecha']).dt.strftime('%Y-%m-%d')
-                st.dataframe(top_frios, use_container_width=True)
-                
-                # Gráfico de barras horizontales
-                chart_frio = alt.Chart(top_frios.reset_index()).mark_bar(color='#3498DB').encode(
-                    y=alt.Y('Fecha:N', title='Fecha', sort='x'),
-                    x=alt.X('Temp. Mínima (°C):Q', title='Temperatura (°C)'),
-                    tooltip=[
-                        alt.Tooltip('Fecha:N', title='Fecha'),
-                        alt.Tooltip('Temp. Mínima (°C):Q', title='Temperatura', format='.1f'),
-                        alt.Tooltip('Estación:N', title='Estación')
-                    ]
-                ).properties(
-                    width=400,
-                    height=300
-                )
-                st.altair_chart(chart_frio, use_container_width=True)
-            
-            # Estadísticas adicionales
-            st.markdown("---")
-            st.subheader("📊 Estadísticas de Extremos")
-            
-            col_a, col_b, col_c = st.columns(3)
-            
-            with col_a:
-                temp_max_absoluta = df_dias['temp_max_dia'].max()
-                fecha_max = df_dias.loc[df_dias['temp_max_dia'].idxmax(), 'dia']
-                st.metric(
-                    label="🔥 Temperatura Máxima Absoluta",
-                    value=f"{temp_max_absoluta:.1f}°C",
-                    delta=f"{pd.to_datetime(fecha_max).strftime('%d/%m/%Y')}"
-                )
-            
-            with col_b:
-                temp_min_absoluta = df_dias['temp_min_dia'].min()
-                fecha_min = df_dias.loc[df_dias['temp_min_dia'].idxmin(), 'dia']
-                st.metric(
-                    label="❄️ Temperatura Mínima Absoluta",
-                    value=f"{temp_min_absoluta:.1f}°C",
-                    delta=f"{pd.to_datetime(fecha_min).strftime('%d/%m/%Y')}"
-                )
-            
-            with col_c:
-                amplitud_maxima = temp_max_absoluta - temp_min_absoluta
-                st.metric(
-                    label="📏 Amplitud Térmica Total",
-                    value=f"{amplitud_maxima:.1f}°C",
-                    delta="Diferencia entre extremos"
-                )
-            
-            st.info(f"""
-            📌 **Conclusión:**  
-            - La **temperatura más alta** registrada fue de **{temp_max_absoluta:.1f}°C** el {pd.to_datetime(fecha_max).strftime('%d de %B de %Y')}.  
-            - La **temperatura más baja** registrada fue de **{temp_min_absoluta:.1f}°C** el {pd.to_datetime(fecha_min).strftime('%d de %B de %Y')}.  
-            - Mendoza experimenta una **amplitud térmica anual** de **{amplitud_maxima:.1f}°C**, lo que refleja su clima continental.
             """)
         
         # ========== SECCIÓN ADICIONAL: DATOS CRUDOS ==========
