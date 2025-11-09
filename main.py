@@ -475,47 +475,52 @@ with tab2:
         # Fechas
         fecha_actual_str = fecha_actual.strftime("%Y-%m-%d")
         fecha_ayer = (fecha_actual - timedelta(days=1)).strftime("%Y-%m-%d")
+        fecha_anteayer = (fecha_actual - timedelta(days=2)).strftime("%Y-%m-%d")
 
         # Ciudad fija
         location = "Mendoza,Argentina"
         
         # Obtener datos usando las API keys (con rotación automática)
+        # Necesitamos 3 días: día-2, día-1, y día seleccionado
         with st.spinner("Obteniendo datos del clima..."):
-            data, api_key_usada, numero_key = obtener_datos_clima(location, fecha_ayer, fecha_actual_str)
+            data, api_key_usada, numero_key = obtener_datos_clima(location, fecha_anteayer, fecha_actual_str)
 
-        if len(data) < 2:
-            st.error("No se obtuvieron datos suficientes (se necesitan 2 días).")
+        if len(data) < 3:
+            st.error("No se obtuvieron datos suficientes (se necesitan 3 días: día-2, día-1, y día seleccionado).")
         else:
-            # Día de ayer y hoy
-            ayer, hoy = data[0], data[1]
+            # Día-2, día-1, y día seleccionado
+            anteayer = data[0]  # día-2 (para rain_yesterday)
+            ayer = data[1]      # día-1 (para features del modelo ML)
+            dia_seleccionado = data[2]  # día seleccionado (para comparar con API)
 
             # Construir la fila con los valores requeridos
+            # Usamos datos del día-1 (ayer) para predecir el día seleccionado
             features = {
-                "temp_mean": hoy["temp"],
-                "feelslike_mean": hoy["feelslike"],
-                "humidity_mean": hoy["humidity"],
-                "dew_mean": hoy["dew"],
-                "pressure_mean": hoy["pressure"],
-                "windspeed_mean": hoy["windspeed"],
-                "windgust_mean": hoy["windgust"],
-                "winddir_mean": hoy["winddir"],
-                "visibility_mean": hoy["visibility"],
-                "solarradiation_mean": hoy["solarradiation"],
-                "uvindex_mean": hoy["uvindex"],
-                "cloudcover_mean": hoy["cloudcover"],
-                "precip_sum": hoy["precip"],
-                "snow_sum": hoy["snow"],
-                "temp_range": hoy["tempmax"] - hoy["tempmin"],
-                "dew_point_diff": hoy["temp"] - hoy["dew"],
+                "temp_mean": ayer["temp"],
+                "feelslike_mean": ayer["feelslike"],
+                "humidity_mean": ayer["humidity"],
+                "dew_mean": ayer["dew"],
+                "pressure_mean": ayer["pressure"],
+                "windspeed_mean": ayer["windspeed"],
+                "windgust_mean": ayer["windgust"],
+                "winddir_mean": ayer["winddir"],
+                "visibility_mean": ayer["visibility"],
+                "solarradiation_mean": ayer["solarradiation"],
+                "uvindex_mean": ayer["uvindex"],
+                "cloudcover_mean": ayer["cloudcover"],
+                "precip_sum": ayer["precip"],
+                "snow_sum": ayer["snow"],
+                "temp_range": ayer["tempmax"] - ayer["tempmin"],
+                "dew_point_diff": ayer["temp"] - ayer["dew"],
 
-                # Features cíclicas
+                # Features cíclicas (usando la fecha seleccionada, que es la que queremos predecir)
                 "month_sin": np.sin(2 * np.pi * fecha_actual.month / 12),
                 "month_cos": np.cos(2 * np.pi * fecha_actual.month / 12),
                 "dayofyear_sin": np.sin(2 * np.pi * fecha_actual.timetuple().tm_yday / 365),
                 "dayofyear_cos": np.cos(2 * np.pi * fecha_actual.timetuple().tm_yday / 365),
 
-                # Lluvia ayer
-                "rain_yesterday": 1 if ayer["precip"] > 0 else 0,
+                # Lluvia ayer (día-2, que es anteayer)
+                "rain_yesterday": 1 if anteayer["precip"] > 0 else 0,
             }
 
             X = pd.DataFrame([features])
@@ -528,23 +533,23 @@ with tab2:
             probs = model.predict_proba(X)[0]
             clases = model.classes_
 
-            # Obtener predicción de la API
-            condicion_api_raw = hoy.get("conditions", "Unknown")
+            # Obtener predicción de la API (datos históricos del día seleccionado)
+            condicion_api_raw = dia_seleccionado.get("conditions", "Unknown")
             pred_api = normalizar_condicion_api(condicion_api_raw)
             
-            # Obtener la fecha del día de hoy desde los datos de la API para verificación
-            fecha_hoy_api = hoy.get("datetime", fecha_actual_str)
+            # Obtener la fecha del día seleccionado desde los datos de la API para verificación
+            fecha_dia_seleccionado = dia_seleccionado.get("datetime", fecha_actual_str)
 
             # Mostrar comparación de predicciones
             st.subheader("🌦️ Comparación de Predicciones")
-            st.info(f"📅 **Fecha de predicción**: {fecha_actual_str} | **Datos del día anterior**: {fecha_ayer} (usado para feature 'rain_yesterday')")
+            st.info(f"📅 **Fecha de predicción**: {fecha_actual_str} | **Datos usados para ML**: {fecha_ayer} (día-1) y {fecha_anteayer} (día-2 para 'rain_yesterday') | **Datos históricos para comparar**: {fecha_actual_str}")
             
             col1, col2 = st.columns(2)
             
             # Predicción del modelo ML
             with col1:
                 st.markdown("### 🤖 Predicción del Modelo ML")
-                st.caption(f"Basada en datos meteorológicos del {fecha_actual_str}")
+                st.caption(f"Predicción para el {fecha_actual_str} usando datos del {fecha_ayer} (día-1)")
                 if pred.lower() == "rain":
                     st.markdown(
                         "<div style='background-color:#D0E8FF; padding:15px; border-radius:10px; text-align:center;'>"
@@ -576,8 +581,8 @@ with tab2:
             
             # Predicción de la API
             with col2:
-                st.markdown("### 🌐 Predicción de Visual Crossing API")
-                st.caption(f"Condición climática para el {fecha_actual_str}")
+                st.markdown("### 🌐 Datos Históricos de Visual Crossing API")
+                st.caption(f"Condición climática histórica real del {fecha_actual_str}")
                 if pred_api.lower() == "rain":
                     st.markdown(
                         "<div style='background-color:#D0E8FF; padding:15px; border-radius:10px; text-align:center;'>"
