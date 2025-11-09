@@ -7,15 +7,114 @@ import altair as alt
 from datetime import datetime, timedelta
 
 # Configuración de la página
-st.set_page_config(page_title="Predicción del Clima", page_icon="🌦️", layout="wide")
-st.title("🌤️ Predicción del Clima con Modelo de ML")
+st.set_page_config(page_title="Predicción del clima", page_icon="🌦️", layout="wide")
+st.title("🌤️ Predicción del clima con modelo de Machine Learning")
 
-# Crear tabs
-tab1, tab2 = st.tabs(["🔮 Predicción del Clima", "📊 Análisis de Datos"])
+# Crear tabs (agregando tab de inicio)
+tab0, tab1, tab2 = st.tabs(["🏠 Inicio", "🔮 Predicción del clima", "📊 Exploración de datos"])
+
+# ==================== TAB 0: INICIO ====================
+with tab0:
+    st.header("¡Bienvenido a la aplicación de predicción del clima! 👋")
+    
+    st.markdown("""
+    Esta aplicación utiliza **Machine Learning** para predecir las condiciones climáticas en **Mendoza, Argentina** 
+    y proporciona herramientas de análisis de datos históricos.
+    """)
+    
+    st.markdown("---")
+    
+    # Sección: ¿Qué puedes hacer?
+    st.subheader("🎯 ¿Qué puedes hacer en esta aplicación?")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.markdown("""
+        ### 🔮 Predicción del clima
+        - **Predice** las condiciones climáticas para una fecha específica
+        - Utiliza un modelo de **Gradient Boosting** entrenado con datos históricos
+        - Obtén probabilidades para diferentes condiciones: **Clear**, **Cloudy**, **Rain**
+        - Visualiza la distribución de probabilidades en un gráfico interactivo
+        """)
+    
+    with col2:
+        st.markdown("""
+        ### 📊 Exploración de datos
+        - **Explora** patrones climáticos históricos de Mendoza
+        - Compara temperaturas según condiciones climáticas y estaciones del año
+        - Analiza la diferencia entre días **despejados** y **nublados**
+        - Visualizaciones interactivas con **gráficos de caja** e **histogramas**
+        """)
+    
+    st.markdown("---")
+    
+    # Sección: Cómo usar la app
+    st.subheader("📖 Cómo usar esta aplicación")
+    
+    with st.expander("🔮 Pestaña: Predicción del clima"):
+        st.markdown("""
+        1. **Selecciona una fecha**: Elige la fecha para la cual deseas la predicción
+        4. **Haz clic en "Predecir clima"**: El modelo procesará los datos y mostrará:
+           - La condición climática más probable
+           - Un gráfico de torta con las probabilidades de cada condición
+           - Los datos utilizados para la predicción
+        """)
+    
+    with st.expander("📊 Pestaña: Exploración de datos"):
+        st.markdown("""
+        1. **Explora las visualizaciones**:
+           - **Visualización 1**: Compara temperaturas (máximas, mínimas o promedio) entre días secos y lluviosos, separadas por estación
+           - **Visualización 2**: Analiza la diferencia de temperaturas máximas entre días despejados (Clear) y nublados (Cloudy)
+        3. **Lee las explicaciones**: Cada visualización incluye el contexto y las conclusiones de las hipótesis planteadas
+        """)
+    
+    st.markdown("---")
+    
+    # Sección: Sobre el modelo
+    st.subheader("🤖 Sobre el Modelo de Machine Learning")
+    
+    st.markdown("""
+    El modelo utilizado es un **Gradient Boosting Classifier** entrenado con datos climáticos históricos de Mendoza.
+    
+    **Características del modelo:**
+    - 🎯 **Variables de entrada**: Temperatura, humedad, presión, viento, radiación solar, cobertura de nubes, y más
+    - 🔄 **Features cíclicas**: Representación sinusoidal del mes y día del año para capturar patrones estacionales
+    - 📅 **Contexto temporal**: Incluye información del día anterior (como lluvia previa)
+    - 🎲 **Salida**: Probabilidades para tres condiciones climáticas principales: Clear, Cloudy y Rain
+    
+    **Ventajas del Gradient Boosting:**
+    - Alta precisión en problemas de clasificación
+    - Capacidad para capturar relaciones no lineales
+    - Resistencia al overfitting mediante técnicas de regularización
+    """)
+    
+    st.markdown("---")
+    
+    # Sección: Datos
+    st.subheader("📁 Sobre los Datos")
+    
+    st.markdown("""
+    - **Fuente**: Visual Crossing Weather API
+    - **Ubicación**: Mendoza, Argentina
+    - **Período**: Datos históricos utilizados para entrenamiento y análisis
+    - **Variables**: Temperatura, humedad, precipitación, viento, presión, radiación solar, índice UV, cobertura de nubes, visibilidad y más
+    - **Frecuencia**: Datos por hora agregados a nivel diario para análisis
+    """)
+    
+    st.markdown("---")
+    
+    # Footer
+    st.markdown("""
+    <div style='text-align: center; color: #666; padding: 20px;'>
+        <p>Desarrollado usando Streamlit, Scikit-learn y Altair</p>
+        <p><small>Los resultados son predicciones basadas en datos históricos y no deben usarse como única fuente para decisiones críticas</small></p>
+    </div>
+    """, unsafe_allow_html=True)
 
 # ==================== TAB 1: PREDICCIÓN ====================
 with tab1:
-    st.header("Predicción del Clima")
+    st.header("Predicción del clima")
     st.write("Ingrese su API Key y una fecha para obtener la predicción del clima en Mendoza, Argentina.")
 
     # Entradas del usuario
@@ -351,20 +450,6 @@ with tab2:
         sesgo inicial.
         """)
         
-        # Estadísticas por estación y condición
-        # st.subheader("📈 Estadísticas Descriptivas")
-        
-        #stats_temp = df_dias.groupby(['estacion', 'condicion_dia'])[config['col']].agg([
-        #    ('Media', 'mean'),
-        #    ('Mediana', 'median'),
-        #    ('Desv.Std', 'std'),
-        #    ('Mínima', 'min'),
-        #    ('Máxima', 'max'),
-        #    ('N° Días', 'count')
-        #]).round(2)
-        
-        #st.dataframe(stats_temp, use_container_width=True)
-        
         # ========== VISUALIZACIÓN 2: Temperatura Máxima Clear vs Cloudy ==========
         st.markdown("---")
         st.header("2️⃣ Comparación de Temperatura Máxima: Clear vs Cloudy")
@@ -483,6 +568,3 @@ with tab2:
                 un análisis de las frecuencias demostró que las temperaturas máximas altas son mucho más frecuentes en días Despejados
                 frente a días Nublados.
                 """)
-                
-            else:
-                st.warning("No se encontraron suficientes datos para días Clear o Cloudy.")
