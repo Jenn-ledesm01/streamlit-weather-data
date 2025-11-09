@@ -52,8 +52,7 @@ st.set_page_config(page_title="Predicción del clima", page_icon="🌦️", layo
 st.title("🌤️ Predicción del clima con modelo de Machine Learning")
 
 # Crear tabs (agregando tab de inicio)
-tab0, tab1, tab2 = st.tabs(["🏠 Inicio", "🔮 Predicción del clima", "📊 Exploración de datos"])
-
+tab0, tab1, tab2, tab3 = st.tabs(["🏠 Inicio", "🤖 Modelo", "🔮 Predicción del clima", "📊 Exploración de datos"])
 # ==================== TAB 0: INICIO ====================
 with tab0:
     st.header("¡Bienvenido a la aplicación de predicción del clima! 👋")
@@ -113,7 +112,7 @@ with tab0:
     st.markdown("---")
     
     # Sección: Sobre el modelo
-    st.subheader("🤖 Sobre el Modelo de Machine Learning")
+    st.subheader("🤖 Sobre el modelo de Machine Learning")
     
     st.markdown("""
     El modelo utilizado es un **Gradient Boosting Classifier** entrenado con datos climáticos históricos de Mendoza.
@@ -153,8 +152,296 @@ with tab0:
     </div>
     """, unsafe_allow_html=True)
 
-# ==================== TAB 1: PREDICCIÓN ====================
+# ==================== TAB 1: MODELO ====================
 with tab1:
+    st.header("🤖 Modelo de Machine Learning")
+    
+    st.markdown("""
+    Esta sección explica en detalle el **modelo de Machine Learning** utilizado para predecir 
+    las condiciones climáticas en Mendoza, Argentina.
+    """)
+    
+    st.markdown("---")
+    
+    # ========== SECCIÓN 1: TIPO DE MODELO ==========
+    st.subheader("🎯 Tipo de modelo: Gradient Boosting Classifier")
+    
+    col1, col2 = st.columns([2, 1])
+    
+    with col1:
+        st.markdown("""
+        **Gradient Boosting** es un algoritmo de ensamble que construye modelos de forma secuencial, 
+        donde cada nuevo modelo intenta corregir los errores del anterior.
+        
+        ### ¿Por qué Gradient Boosting?
+        
+        - ✅ **Alta precisión**: Excelente desempeño en problemas de clasificación
+        - ✅ **Captura complejidad**: Detecta relaciones no lineales entre variables climáticas
+        - ✅ **Robusto**: Maneja bien datos con ruido y valores atípicos
+        - ✅ **Control de overfitting**: Parámetros de regularización integrados
+        - ✅ **Interpretabilidad**: Permite analizar la importancia de cada variable
+        """)
+    
+    with col2:
+        st.info("""
+        **Configuración:**
+        - `n_estimators`: 100
+        - `max_depth`: 5
+        - `random_state`: 42
+        """)
+    
+    st.markdown("---")
+    
+    # ========== SECCIÓN 2: VARIABLES DE ENTRADA ==========
+    st.subheader("📊 Variables de entrada (Features)")
+    
+    st.markdown("""
+    El modelo utiliza **21 características** derivadas de datos meteorológicos diarios:
+    """)
+    
+    # Crear tabs para organizar las variables
+    var_tab1, var_tab2, var_tab3 = st.tabs(["Variables meteorológicas", "Features derivadas", "Features temporales"])
+    
+    with var_tab1:
+        st.markdown("""
+        ### Variables Meteorológicas Básicas
+        
+        Estas son mediciones directas del clima:
+        
+        | Variable | Descripción | Unidad |
+        |----------|-------------|--------|
+        | `temp_mean` | Temperatura promedio del día | °C |
+        | `feelslike_mean` | Sensación térmica promedio | °C |
+        | `humidity_mean` | Humedad relativa promedio | % |
+        | `dew_mean` | Punto de rocío promedio | °C |
+        | `pressure_mean` | Presión atmosférica promedio | mbar |
+        | `windspeed_mean` | Velocidad del viento promedio | km/h |
+        | `windgust_mean` | Ráfagas de viento promedio | km/h |
+        | `winddir_mean` | Dirección del viento promedio | grados |
+        | `visibility_mean` | Visibilidad promedio | km |
+        | `cloudcover_mean` | Cobertura de nubes promedio | % |
+        | `solarradiation_mean` | Radiación solar promedio | W/m² |
+        | `uvindex_mean` | Índice UV promedio | escala 0-11 |
+        | `precip_sum` | Precipitación total del día | mm |
+        | `snow_sum` | Nieve total del día | mm |
+        """)
+    
+    with var_tab2:
+        st.markdown("""
+        ### Features derivadas
+        
+        Estas variables se calculan a partir de las mediciones básicas para capturar patrones adicionales:
+        
+        | Feature | Cálculo | Significado |
+        |---------|---------|-------------|
+        | `temp_range` | `temp_max - temp_min` | Amplitud térmica del día |
+        | `dew_point_diff` | `temp_mean - dew_mean` | Diferencia entre temperatura y punto de rocío (relacionado con humedad) |
+        | `rain_yesterday` | Binario (0/1) | Indicador de si llovió el día anterior |
+        
+        **¿Por qué son importantes?**
+        - La **amplitud térmica** indica la estabilidad atmosférica
+        - La **diferencia con punto de rocío** ayuda a predecir formación de nubes
+        - La **lluvia del día anterior** captura patrones de persistencia climática
+        """)
+    
+    with var_tab3:
+        st.markdown("""
+        ### Features temporales (Estacionalidad)
+        
+        Para capturar los **patrones estacionales** del clima, se utilizan representaciones cíclicas:
+        
+        | Feature | Fórmula | Rango |
+        |---------|---------|-------|
+        | `month_sin` | `sin(2π × mes / 12)` | [-1, 1] |
+        | `month_cos` | `cos(2π × mes / 12)` | [-1, 1] |
+        | `dayofyear_sin` | `sin(2π × día_del_año / 365)` | [-1, 1] |
+        | `dayofyear_cos` | `cos(2π × día_del_año / 365)` | [-1, 1] |
+        
+        ### ¿Por qué usar senos y cosenos?
+        
+        Las fechas son **cíclicas**: diciembre (mes 12) está cerca de enero (mes 1), pero numéricamente están 
+        lejos. Las funciones trigonométricas permiten representar esta continuidad:
+        
+        - **Ventaja**: El modelo "entiende" que enero y diciembre son meses consecutivos
+        - **Resultado**: Mejora la predicción en transiciones estacionales
+        """)
+        
+        # Ejemplo visual (opcional)
+        st.markdown("""
+        **Ejemplo:** Enero (mes 1) y Diciembre (mes 12)
+        - En representación numérica: distancia = 11
+        - En representación cíclica: distancia ≈ 0 (están contiguos en el círculo)
+        """)
+    
+    st.markdown("---")
+    
+    # ========== SECCIÓN 3: CLASES DE SALIDA ==========
+    st.subheader("🎨 Clases de salida")
+    
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        st.markdown("""
+        <div style='background-color:#FFF4C2; padding:20px; border-radius:10px; text-align:center;'>
+            <h3 style='color:#8B6914;'>☀️ Clear</h3>
+            <p style='color:#000000;'><b>Despejado</b></p>
+            <p style='color:#000000;'>Cielo mayormente despejado, sin nubes significativas</p>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with col2:
+        st.markdown("""
+        <div style='background-color:#E8E8E8; padding:20px; border-radius:10px; text-align:center;'>
+            <h3 style='color:#2C3E50;'>☁️ Cloudy</h3>
+            <p style='color:#000000;'><b>Nublado</b></p>
+            <p style='color:#000000;'>Incluye "Partially cloudy" y "Overcast"</p>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with col3:
+        st.markdown("""
+        <div style='background-color:#D0E8FF; padding:20px; border-radius:10px; text-align:center;'>
+            <h3 style='color:#004085;'>🌧️ Rain</h3>
+            <p style='color:#000000;'><b>Lluvia</b></p>
+            <p style='color:#000000;'>Cualquier tipo de precipitación</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    st.markdown("""
+    ### Decisión de simplificación
+    
+    Originalmente, las condiciones climáticas incluían categorías como:
+    - `Partially cloudy`
+    - `Overcast`
+    - `Clear`
+    - `Rain`
+    
+    Para mejorar el rendimiento del modelo, se **fusionaron** las categorías nubladas:
+    - ✅ `Partially cloudy` + `Overcast` → **`Cloudy`**
+    
+    **Resultado:** 3 clases principales que son más fáciles de predecir y más útiles en la práctica.
+    """)
+    
+    st.markdown("---")
+    
+    # ========== SECCIÓN 4: PREPROCESAMIENTO ==========
+    st.subheader("🔧 Preprocesamiento de Datos")
+    
+    st.markdown("""
+    Antes de entrenar el modelo, los datos pasan por varias transformaciones:
+    """)
+    
+    with st.expander("1️⃣ Agregación de datos horarios a diarios"):
+        st.markdown("""
+        Los datos originales son **por hora**, pero el modelo predice **días completos**:
+        
+        - **Temperatura**: Se calcula `mean`, `max` y `min`
+        - **Precipitación**: Se **suma** para obtener el total diario
+        - **Otras variables**: Se promedian (humedad, presión, viento, etc.)
+        
+        **Ventaja:** Reduce el ruido y captura el comportamiento general del día.
+        """)
+    
+    with st.expander("2️⃣ Imputación de valores faltantes"):
+        st.markdown("""
+        Si alguna variable tiene datos faltantes, se **imputa con la media** de esa columna:
+```python
+        SimpleImputer(strategy='mean')
+```
+        
+        **Ventaja:** Evita perder datos valiosos por valores faltantes ocasionales.
+        """)
+    
+    with st.expander("3️⃣ Normalización (StandardScaler)"):
+        st.markdown("""
+        Las variables numéricas se **estandarizan** para tener:
+        - Media = 0
+        - Desviación estándar = 1
+        
+        **Ventaja:** Las variables con diferentes escalas (ej: temperatura vs presión) 
+        contribuyen equitativamente al modelo.
+        """)
+    
+    with st.expander("4️⃣ One-Hot Encoding para variables categóricas"):
+        st.markdown("""
+        La variable categórica `rain_yesterday` (0 o 1) se codifica usando **One-Hot Encoding**:
+        
+        - `rain_yesterday = 0` → `[1, 0]`
+        - `rain_yesterday = 1` → `[0, 1]`
+        
+        **Ventaja:** El modelo puede procesar variables categóricas de forma eficiente.
+        """)
+    
+    st.markdown("---")
+    
+    # ========== SECCIÓN 5: ENTRENAMIENTO Y EVALUACIÓN ==========
+    st.subheader("🎓 Entrenamiento y evaluación")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.markdown("""
+        ### División de datos
+        
+        - **80% Train** (entrenamiento)
+        - **20% Test** (evaluación)
+        - **Estratificación**: Mantiene la proporción de clases en ambos conjuntos
+        
+        ### Métricas de evaluación
+        
+        - **Accuracy**: Porcentaje de predicciones correctas
+        - **F1-Score (weighted)**: Promedio ponderado del F1 de cada clase
+        - **F1-Score (macro)**: Promedio simple del F1 de cada clase
+        """)
+    
+    with col2:
+        st.info("""
+        ### Ventajas del split estratificado
+        
+        - ✅ Evita desbalance en train/test
+        - ✅ Representación equitativa de clases minoritarias
+        - ✅ Evaluación más confiable
+        
+        ### Validación
+        
+        El modelo se evalúa en datos **nunca vistos** 
+        durante el entrenamiento para medir su 
+        capacidad de generalización.
+        """)
+    
+    st.markdown("---")
+    
+    # ========== SECCIÓN 6: LIMITACIONES Y CONSIDERACIONES ==========
+    st.subheader("⚠️ Limitaciones y consideraciones")
+    
+    st.warning("""
+    ### Limitaciones del modelo
+    
+    1. **Datos históricos**: El modelo aprende de patrones pasados y puede no capturar eventos climáticos extremos o inusuales
+    2. **Horizonte temporal**: Predice el clima del **día siguiente**, no periodos más largos
+    3. **Variables no incluidas**: No considera fenómenos como El Niño/La Niña, erupciones volcánicas, etc.
+    4. **Localización específica**: Entrenado solo para Mendoza, Argentina
+    5. **Simplificación de clases**: La fusión de categorías pierde cierta granularidad
+    
+    ### Recomendaciones de uso
+    
+    - ✅ Usar como **herramienta complementaria** a pronósticos oficiales
+    - ✅ Ideal para **análisis exploratorio** y comprensión de patrones climáticos
+    - ❌ **NO usar** como única fuente para decisiones críticas (agricultura, aviación, emergencias)
+    """)
+    
+    st.markdown("---")
+    
+    # ========== FOOTER ==========
+    st.markdown("""
+    <div style='text-align: center; color: #666; padding: 20px;'>
+        <p><b>📚 Referencias técnicas:</b></p>
+        <p>Scikit-learn Gradient Boosting | Visual Crossing Weather API | StandardScaler & Pipeline</p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+# ==================== TAB 1: PREDICCIÓN ====================
+with tab2:
     st.header("Predicción del clima")
 
     # Entradas del usuario
@@ -288,7 +575,7 @@ with tab1:
         st.error(f"Error al obtener datos o predecir: {e}")
 
 # ==================== TAB 2: VISUALIZACIONES ====================
-with tab2:    
+with tab3:    
     # Inicializar session_state si no existe
     if 'datos_procesados' not in st.session_state:
         st.session_state.datos_procesados = None
