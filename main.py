@@ -6,6 +6,47 @@ import joblib
 import altair as alt
 from datetime import datetime, timedelta
 
+API_KEYS = [
+    "N9FENAZ4MC65WBZ6J6AWGULZ3",
+    "54G4EHM72LT7762EHUQMKERYE",
+    "5YXQ8PZG4HJQTG4WLQ4CYZBLJ",
+    "LZCNRDCYVBUKWK79K3ZD3YVN9",
+    "C97H3YUSQBF833J35FNMWHTLZ"
+]
+
+# Función para probar API keys
+def obtener_datos_clima(location, fecha_ayer, fecha_actual):
+    """Intenta obtener datos usando las API keys disponibles"""
+    for idx, api_key in enumerate(API_KEYS):
+        try:
+            url = f"https://weather.visualcrossing.com/VisualCrossingWebServices/rest/services/timeline/{location}/{fecha_ayer}/{fecha_actual}"
+            params = {
+                "unitGroup": "metric",
+                "include": "days",
+                "contentType": "json",
+                "key": api_key,
+            }
+            
+            response = requests.get(url, params=params, timeout=10)
+            response.raise_for_status()
+            data = response.json()["days"]
+            
+            # Si llegamos aquí, la API key funcionó
+            return data, api_key, idx + 1
+            
+        except requests.exceptions.HTTPError as e:
+            if response.status_code == 429:  # Too many requests
+                st.warning(f"API Key {idx + 1} sin créditos. Probando siguiente...")
+                continue
+            else:
+                raise e
+        except Exception as e:
+            if idx == len(API_KEYS) - 1:  # Última key
+                raise e
+            continue
+    
+    raise Exception("Todas las API keys agotaron sus créditos")
+
 # Configuración de la página
 st.set_page_config(page_title="Predicción del clima", page_icon="🌦️", layout="wide")
 st.title("🌤️ Predicción del clima con modelo de Machine Learning")
@@ -115,155 +156,141 @@ with tab0:
 # ==================== TAB 1: PREDICCIÓN ====================
 with tab1:
     st.header("Predicción del clima")
-    st.write("Ingrese su API Key y una fecha para obtener la predicción del clima en Mendoza, Argentina.")
 
     # Entradas del usuario
-    api_key = st.text_input("🔑 Ingrese su API Key de Visual Crossing:")
     fecha_actual = st.date_input("📅 Seleccione la fecha (YYYY-MM-DD):", datetime.today().date())
 
-    # Botón
-    if st.button("Predecir clima"):
-        if not api_key:
-            st.warning("Por favor ingrese su API key.")
+    # Ejecutar predicción automáticamente al seleccionar la fecha
+    try:
+        # Fechas
+        fecha_actual_str = fecha_actual.strftime("%Y-%m-%d")
+        fecha_ayer = (fecha_actual - timedelta(days=1)).strftime("%Y-%m-%d")
+
+        # Ciudad fija
+        location = "Mendoza,Argentina"
+        
+        # Obtener datos usando las API keys (con rotación automática)
+        with st.spinner("Obteniendo datos del clima..."):
+            data, api_key_usada, numero_key = obtener_datos_clima(location, fecha_ayer, fecha_actual_str)
+
+        if len(data) < 2:
+            st.error("No se obtuvieron datos suficientes (se necesitan 2 días).")
         else:
-            try:
-                # Fechas
-                fecha_actual_str = fecha_actual.strftime("%Y-%m-%d")
-                fecha_ayer = (fecha_actual - timedelta(days=1)).strftime("%Y-%m-%d")
+            # Día de ayer y hoy
+            ayer, hoy = data[0], data[1]
 
-                # Ciudad fija
-                location = "Mendoza,Argentina"
-                url = f"https://weather.visualcrossing.com/VisualCrossingWebServices/rest/services/timeline/{location}/{fecha_ayer}/{fecha_actual}"
-                params = {
-                    "unitGroup": "metric",
-                    "include": "days",
-                    "contentType": "json",
-                    "key": api_key,
-                }
+            # Construir la fila con los valores requeridos
+            features = {
+                "temp_mean": hoy["temp"],
+                "feelslike_mean": hoy["feelslike"],
+                "humidity_mean": hoy["humidity"],
+                "dew_mean": hoy["dew"],
+                "pressure_mean": hoy["pressure"],
+                "windspeed_mean": hoy["windspeed"],
+                "windgust_mean": hoy["windgust"],
+                "winddir_mean": hoy["winddir"],
+                "visibility_mean": hoy["visibility"],
+                "solarradiation_mean": hoy["solarradiation"],
+                "uvindex_mean": hoy["uvindex"],
+                "cloudcover_mean": hoy["cloudcover"],
+                "precip_sum": hoy["precip"],
+                "snow_sum": hoy["snow"],
+                "temp_range": hoy["tempmax"] - hoy["tempmin"],
+                "dew_point_diff": hoy["temp"] - hoy["dew"],
 
-                # Petición a la API
-                response = requests.get(url, params=params)
-                response.raise_for_status()
-                data = response.json()["days"]
+                # Features cíclicas
+                "month_sin": np.sin(2 * np.pi * fecha_actual.month / 12),
+                "month_cos": np.cos(2 * np.pi * fecha_actual.month / 12),
+                "dayofyear_sin": np.sin(2 * np.pi * fecha_actual.timetuple().tm_yday / 365),
+                "dayofyear_cos": np.cos(2 * np.pi * fecha_actual.timetuple().tm_yday / 365),
 
-                if len(data) < 2:
-                    st.error("No se obtuvieron datos suficientes (se necesitan 2 días).")
-                else:
-                    # Día de ayer y hoy
-                    ayer, hoy = data[0], data[1]
+                # Lluvia ayer
+                "rain_yesterday": 1 if ayer["precip"] > 0 else 0,
+            }
 
-                    # Construir la fila con los valores requeridos
-                    features = {
-                        "temp_mean": hoy["temp"],
-                        "feelslike_mean": hoy["feelslike"],
-                        "humidity_mean": hoy["humidity"],
-                        "dew_mean": hoy["dew"],
-                        "pressure_mean": hoy["pressure"],
-                        "windspeed_mean": hoy["windspeed"],
-                        "windgust_mean": hoy["windgust"],
-                        "winddir_mean": hoy["winddir"],
-                        "visibility_mean": hoy["visibility"],
-                        "solarradiation_mean": hoy["solarradiation"],
-                        "uvindex_mean": hoy["uvindex"],
-                        "cloudcover_mean": hoy["cloudcover"],
-                        "precip_sum": hoy["precip"],
-                        "snow_sum": hoy["snow"],
-                        "temp_range": hoy["tempmax"] - hoy["tempmin"],
-                        "dew_point_diff": hoy["temp"] - hoy["dew"],
+            X = pd.DataFrame([features])
 
-                        # Features cíclicas
-                        "month_sin": np.sin(2 * np.pi * fecha_actual.month / 12),
-                        "month_cos": np.cos(2 * np.pi * fecha_actual.month / 12),
-                        "dayofyear_sin": np.sin(2 * np.pi * fecha_actual.timetuple().tm_yday / 365),
-                        "dayofyear_cos": np.cos(2 * np.pi * fecha_actual.timetuple().tm_yday / 365),
+            # Cargar el modelo
+            model = joblib.load("model_output/gradient_boosting_weather_model.pkl")
 
-                        # Lluvia ayer
-                        "rain_yesterday": 1 if ayer["precip"] > 0 else 0,
-                    }
+            # ================= PREDICCIÓN Y PROBABILIDADES =================
+            pred = model.predict(X)[0]
+            probs = model.predict_proba(X)[0]
+            clases = model.classes_
 
-                    X = pd.DataFrame([features])
+            # Mostrar resultado principal destacado
+            st.subheader("🌦️ Resultado de la predicción:")
 
-                    # Cargar el modelo
-                    model = joblib.load("model_output/gradient_boosting_weather_model.pkl")
+            if pred.lower() == "rain":
+                st.markdown(
+                    "<div style='background-color:#D0E8FF; padding:15px; border-radius:10px; text-align:center;'>"
+                    "<h2 style='color:#007BFF;'>🌧️ Predicción más probable: <b>Rain</b></h2>"
+                    "</div>",
+                    unsafe_allow_html=True,
+                )
+            elif pred.lower() == "cloudy":
+                st.markdown(
+                    "<div style='background-color:#E8E8E8; padding:15px; border-radius:10px; text-align:center;'>"
+                    "<h2 style='color:#555;'>☁️ Predicción más probable: <b>Cloudy</b></h2>"
+                    "</div>",
+                    unsafe_allow_html=True,
+                )
+            elif pred.lower() == "clear":
+                st.markdown(
+                    "<div style='background-color:#FFF4C2; padding:15px; border-radius:10px; text-align:center;'>"
+                    "<h2 style='color:#E0A800;'>☀️ Predicción más probable: <b>Clear</b></h2>"
+                    "</div>",
+                    unsafe_allow_html=True,
+                )
+            else:
+                st.markdown(
+                    f"<div style='background-color:#F8F9FA; padding:15px; border-radius:10px; text-align:center;'>"
+                    f"<h2>🔍 Predicción más probable: <b>{pred}</b></h2>"
+                    "</div>",
+                    unsafe_allow_html=True,
+                )
 
-                    # ================= PREDICCIÓN Y PROBABILIDADES =================
-                    pred = model.predict(X)[0]
-                    probs = model.predict_proba(X)[0]
-                    clases = model.classes_
+            # ================= GRÁFICO DE TORTA INTERACTIVO =================
+            st.markdown("### 📊 Distribución de probabilidades")
 
-                    # Mostrar resultado principal destacado
-                    st.subheader("🌦️ Resultado de la predicción:")
+            # Crear DataFrame con las probabilidades
+            df_probs = pd.DataFrame({
+                "Condición": clases,
+                "Probabilidad": np.round(probs * 100, 2)
+            })
 
-                    if pred.lower() == "rain":
-                        st.markdown(
-                            "<div style='background-color:#D0E8FF; padding:15px; border-radius:10px; text-align:center;'>"
-                            "<h2 style='color:#007BFF;'>🌧️ Predicción más probable: <b>Rain</b></h2>"
-                            "</div>",
-                            unsafe_allow_html=True,
-                        )
-                    elif pred.lower() == "cloudy":
-                        st.markdown(
-                            "<div style='background-color:#E8E8E8; padding:15px; border-radius:10px; text-align:center;'>"
-                            "<h2 style='color:#555;'>☁️ Predicción más probable: <b>Cloudy</b></h2>"
-                            "</div>",
-                            unsafe_allow_html=True,
-                        )
-                    elif pred.lower() == "clear":
-                        st.markdown(
-                            "<div style='background-color:#FFF4C2; padding:15px; border-radius:10px; text-align:center;'>"
-                            "<h2 style='color:#E0A800;'>☀️ Predicción más probable: <b>Clear</b></h2>"
-                            "</div>",
-                            unsafe_allow_html=True,
-                        )
-                    else:
-                        st.markdown(
-                            f"<div style='background-color:#F8F9FA; padding:15px; border-radius:10px; text-align:center;'>"
-                            f"<h2>🔍 Predicción más probable: <b>{pred}</b></h2>"
-                            "</div>",
-                            unsafe_allow_html=True,
-                        )
+            # Crear gráfico de torta (pie chart) con Altair
+            chart = (
+                alt.Chart(df_probs)
+                .mark_arc(innerRadius=50)
+                .encode(
+                    theta=alt.Theta("Probabilidad:Q", title="Probabilidad (%)"),
+                    color=alt.Color("Condición:N", legend=alt.Legend(title="Condición climática")),
+                    tooltip=[
+                        alt.Tooltip("Condición:N", title="Condición"),
+                        alt.Tooltip("Probabilidad:Q", title="Probabilidad (%)")
+                    ]
+                )
+                .properties(width=400, height=400)
+                .interactive()  # permite zoom y hover
+            )
 
-                    # ================= GRÁFICO DE TORTA INTERACTIVO =================
-                    st.markdown("### 📊 Distribución de probabilidades")
-
-                    # Crear DataFrame con las probabilidades
-                    df_probs = pd.DataFrame({
-                        "Condición": clases,
-                        "Probabilidad": np.round(probs * 100, 2)
-                    })
-
-                    # Crear gráfico de torta (pie chart) con Altair
-                    chart = (
-                        alt.Chart(df_probs)
-                        .mark_arc(innerRadius=50)
-                        .encode(
-                            theta=alt.Theta("Probabilidad:Q", title="Probabilidad (%)"),
-                            color=alt.Color("Condición:N", legend=alt.Legend(title="Condición climática")),
-                            tooltip=[
-                                alt.Tooltip("Condición:N", title="Condición"),
-                                alt.Tooltip("Probabilidad:Q", title="Probabilidad (%)")
-                            ]
-                        )
-                        .properties(width=400, height=400)
-                        .interactive()  # permite zoom y hover
-                    )
-
-                    # Mostrar el gráfico
-                    st.altair_chart(chart, use_container_width=True)
+            # Mostrar el gráfico
+            st.altair_chart(chart, use_container_width=True)
 
 
-                    # Mostrar datos usados
-                    with st.expander("📊 Ver datos usados para la predicción"):
-                        st.write(X)
+            # Mostrar datos usados
+            with st.expander("📊 Ver datos usados para la predicción"):
+                st.write(X)
 
-            except Exception as e:
-                st.error(f"Error al obtener datos o predecir: {e}")
+    except Exception as e:
+        st.error(f"Error al obtener datos o predecir: {e}")
 
 # ==================== TAB 2: VISUALIZACIONES ====================
 with tab2:
     st.header("📊 Análisis de Datos Climáticos")
     
-    st.write("Genera gráficos interactivos usando los datos históricos del clima en Mendoza.")
+    st.write("Gráficos interactivos usando los datos históricos del clima en Mendoza.")
     
     # Inicializar session_state si no existe
     if 'datos_procesados' not in st.session_state:
@@ -273,98 +300,95 @@ with tab2:
         st.session_state.df_dias_var = None
         st.session_state.orden_estaciones = None
     
-    # Botón para generar gráficos
-    if st.button("🎨 Generar Gráficos"):
+    # Procesar datos automáticamente si no están en session_state
+    if not st.session_state.datos_procesados or st.session_state.df_dias is None:
         try:
-            # Cargar datos desde el archivo local
-            df = pd.read_csv("joined_weather_data.csv")
+            with st.spinner("Cargando y procesando datos..."):
+                # Cargar datos desde el archivo local
+                df = pd.read_csv("joined_weather_data.csv")
+                
+                # Convertir datetime_completo a formato datetime
+                if 'datetime_completo' in df.columns:
+                    df['datetime_completo'] = pd.to_datetime(df['datetime_completo'])
+                
+                # ========== PREPROCESAMIENTO: ESTACIONES Y CONDICIONES ==========
+                
+                # Función para obtener estación
+                def obtener_estacion(fecha):
+                    mes = fecha.month
+                    if mes in [12, 1, 2]:
+                        return 'Verano'
+                    elif mes in [3, 4, 5]:
+                        return 'Otoño'
+                    elif mes in [6, 7, 8]:
+                        return 'Invierno'
+                    else:
+                        return 'Primavera'
+                
+                # Crear columna de día (sin hora)
+                df['dia'] = df['datetime_completo'].dt.date
+                df['dia'] = pd.to_datetime(df['dia'])
+                df['estacion'] = df['dia'].apply(obtener_estacion)
+                
+                # Detectar lluvia por hora
+                lluvia_keywords = [
+                    'Rain', 'Drizzle', 'Showers', 'Thunderstorm',
+                    'Precipitation', 'Rain And Snow', 'Drizzle/Rain'
+                ]
+                df['lluvia_hora'] = df['conditions'].str.contains('|'.join(lluvia_keywords), case=False, na=False)
+                
+                # Agregación diaria para temperaturas (primera visualización)
+                df_dias = (
+                    df.groupby(['dia', 'estacion'], as_index=False)
+                    .agg({
+                        'temp': ['max', 'min', 'mean', 'std'],
+                        'lluvia_hora': 'any'
+                    })
+                )
+                
+                # Aplanar nombres de columnas
+                df_dias.columns = ['dia', 'estacion', 'temp_max_dia', 'temp_min_dia', 'temp_avg_dia', 'temp_std_dia', 'lluvia_dia']
+                
+                # Crear condición_dia categórica
+                df_dias['condicion_dia'] = df_dias['lluvia_dia'].map({False: 'Seco', True: 'Lluvioso'})
+                
+                # Orden de estaciones y condiciones
+                orden_estaciones = ['Verano', 'Otoño', 'Invierno', 'Primavera']
+                df_dias['estacion'] = pd.Categorical(df_dias['estacion'], categories=orden_estaciones, ordered=True)
+                df_dias['condicion_dia'] = pd.Categorical(df_dias['condicion_dia'], categories=['Seco', 'Lluvioso'], ordered=True)
+                
+                # Agregación diaria para variabilidad (igual que en Colab)
+                df_dias_var = (
+                    df.groupby(['dia', 'estacion'], as_index=False)
+                    .agg({
+                        'temp': 'std',
+                        'lluvia_hora': 'any'
+                    })
+                    .rename(columns={'temp': 'temp_std_dia', 'lluvia_hora': 'lluvia_dia'})
+                )
+                
+                # Mapear a etiquetas legibles y tipo categoría
+                df_dias_var['condicion_dia'] = pd.Categorical(
+                    df_dias_var['lluvia_dia'].map({False: 'Seco', True: 'Lluvioso'}),
+                    categories=['Seco', 'Lluvioso'],
+                    ordered=True
+                )
+                
+                df_dias_var['estacion'] = pd.Categorical(df_dias_var['estacion'], categories=orden_estaciones, ordered=True)
+                
+                # Guardar en session_state
+                st.session_state.datos_procesados = True
+                st.session_state.df_original = df.copy()  # Guardar dataframe original para la nueva visualización
+                st.session_state.df_dias = df_dias
+                st.session_state.df_dias_var = df_dias_var
+                st.session_state.orden_estaciones = orden_estaciones
+                
+            st.success(f"✅ Datos cargados y procesados: {len(df)} registros")
         except Exception as e:
             st.error(f"Error al cargar el archivo csv: {e}")
             st.stop()
-        
-        # Convertir datetime_completo a formato datetime
-        if 'datetime_completo' in df.columns:
-            df['datetime_completo'] = pd.to_datetime(df['datetime_completo'])
-        
-        st.success(f"✅ Datos cargados: {len(df)} registros")
-        
-        # Mostrar muestra de datos
-        with st.expander("👀 Ver muestra de datos"):
-            st.dataframe(df.head(10))
-        
-        # ========== PREPROCESAMIENTO: ESTACIONES Y CONDICIONES ==========
-        
-        # Función para obtener estación
-        def obtener_estacion(fecha):
-            mes = fecha.month
-            if mes in [12, 1, 2]:
-                return 'Verano'
-            elif mes in [3, 4, 5]:
-                return 'Otoño'
-            elif mes in [6, 7, 8]:
-                return 'Invierno'
-            else:
-                return 'Primavera'
-        
-        # Crear columna de día (sin hora)
-        df['dia'] = df['datetime_completo'].dt.date
-        df['dia'] = pd.to_datetime(df['dia'])
-        df['estacion'] = df['dia'].apply(obtener_estacion)
-        
-        # Detectar lluvia por hora
-        lluvia_keywords = [
-            'Rain', 'Drizzle', 'Showers', 'Thunderstorm',
-            'Precipitation', 'Rain And Snow', 'Drizzle/Rain'
-        ]
-        df['lluvia_hora'] = df['conditions'].str.contains('|'.join(lluvia_keywords), case=False, na=False)
-        
-        # Agregación diaria para temperaturas (primera visualización)
-        df_dias = (
-            df.groupby(['dia', 'estacion'], as_index=False)
-            .agg({
-                'temp': ['max', 'min', 'mean', 'std'],
-                'lluvia_hora': 'any'
-            })
-        )
-        
-        # Aplanar nombres de columnas
-        df_dias.columns = ['dia', 'estacion', 'temp_max_dia', 'temp_min_dia', 'temp_avg_dia', 'temp_std_dia', 'lluvia_dia']
-        
-        # Crear condición_dia categórica
-        df_dias['condicion_dia'] = df_dias['lluvia_dia'].map({False: 'Seco', True: 'Lluvioso'})
-        
-        # Orden de estaciones y condiciones
-        orden_estaciones = ['Verano', 'Otoño', 'Invierno', 'Primavera']
-        df_dias['estacion'] = pd.Categorical(df_dias['estacion'], categories=orden_estaciones, ordered=True)
-        df_dias['condicion_dia'] = pd.Categorical(df_dias['condicion_dia'], categories=['Seco', 'Lluvioso'], ordered=True)
-        
-        # Agregación diaria para variabilidad (igual que en Colab)
-        df_dias_var = (
-            df.groupby(['dia', 'estacion'], as_index=False)
-            .agg({
-                'temp': 'std',
-                'lluvia_hora': 'any'
-            })
-            .rename(columns={'temp': 'temp_std_dia', 'lluvia_hora': 'lluvia_dia'})
-        )
-        
-        # Mapear a etiquetas legibles y tipo categoría
-        df_dias_var['condicion_dia'] = pd.Categorical(
-            df_dias_var['lluvia_dia'].map({False: 'Seco', True: 'Lluvioso'}),
-            categories=['Seco', 'Lluvioso'],
-            ordered=True
-        )
-        
-        df_dias_var['estacion'] = pd.Categorical(df_dias_var['estacion'], categories=orden_estaciones, ordered=True)
-        
-        # Guardar en session_state
-        st.session_state.datos_procesados = True
-        st.session_state.df_original = df.copy()  # Guardar dataframe original para la nueva visualización
-        st.session_state.df_dias = df_dias
-        st.session_state.df_dias_var = df_dias_var
-        st.session_state.orden_estaciones = orden_estaciones
     
-    # Mostrar visualizaciones solo si los datos han sido procesados
+    # Mostrar visualizaciones (siempre que los datos estén procesados)
     if st.session_state.datos_procesados and st.session_state.df_dias is not None:
         df_dias = st.session_state.df_dias
         orden_estaciones = st.session_state.orden_estaciones
