@@ -805,7 +805,7 @@ with tab2:
         # ========== SECCIÓN ADICIONAL: DATOS CRUDOS ==========
         st.markdown("---")
         with st.expander("📋 Ver datos completos en tabla"):
-            st.subheader("Datos Agregados por Día")
+            st.subheader("Datos agregados por día")
             st.dataframe(
                 df_dias[['dia', 'estacion', 'temp_max_dia', 'temp_min_dia', 
                         'temp_avg_dia', 'humidity_avg', 'condicion_dia', 'conditions']].sort_values('dia', ascending=False),
