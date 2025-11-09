@@ -47,6 +47,29 @@ def obtener_datos_clima(location, fecha_ayer, fecha_actual):
     
     raise Exception("Todas las API keys agotaron sus créditos")
 
+# Función para normalizar condiciones de la API a las clases del modelo
+def normalizar_condicion_api(condicion_api):
+    """Normaliza las condiciones de la API a las clases del modelo (Clear, Cloudy, Rain)"""
+    if not condicion_api:
+        return "Unknown"
+    
+    condicion_lower = condicion_api.lower()
+    
+    # Condiciones de lluvia
+    if any(keyword in condicion_lower for keyword in ['rain', 'drizzle', 'showers', 'thunderstorm', 'precipitation']):
+        return "Rain"
+    
+    # Condiciones despejadas
+    if 'clear' in condicion_lower:
+        return "Clear"
+    
+    # Condiciones nubladas (incluye partially cloudy, overcast, etc.)
+    if any(keyword in condicion_lower for keyword in ['cloudy', 'overcast', 'partially', 'fog', 'mist']):
+        return "Cloudy"
+    
+    # Por defecto, si no coincide con nada, retornar la condición original
+    return condicion_api
+
 # Configuración de la página
 st.set_page_config(page_title="Predicción del clima", page_icon="🌦️", layout="wide")
 st.title("🌤️ Predicción del clima con modelo de Machine Learning")
@@ -505,40 +528,87 @@ with tab2:
             probs = model.predict_proba(X)[0]
             clases = model.classes_
 
-            # Mostrar resultado principal destacado
-            st.subheader("🌦️ Resultado de la predicción:")
+            # Obtener predicción de la API
+            condicion_api_raw = hoy.get("conditions", "Unknown")
+            pred_api = normalizar_condicion_api(condicion_api_raw)
 
-            if pred.lower() == "rain":
-                st.markdown(
-                    "<div style='background-color:#D0E8FF; padding:15px; border-radius:10px; text-align:center;'>"
-                    "<h2 style='color:#007BFF;'>🌧️ Predicción más probable: <b>Rain</b></h2>"
-                    "</div>",
-                    unsafe_allow_html=True,
-                )
-            elif pred.lower() == "cloudy":
-                st.markdown(
-                    "<div style='background-color:#E8E8E8; padding:15px; border-radius:10px; text-align:center;'>"
-                    "<h2 style='color:#555;'>☁️ Predicción más probable: <b>Cloudy</b></h2>"
-                    "</div>",
-                    unsafe_allow_html=True,
-                )
-            elif pred.lower() == "clear":
-                st.markdown(
-                    "<div style='background-color:#FFF4C2; padding:15px; border-radius:10px; text-align:center;'>"
-                    "<h2 style='color:#E0A800;'>☀️ Predicción más probable: <b>Clear</b></h2>"
-                    "</div>",
-                    unsafe_allow_html=True,
-                )
+            # Mostrar comparación de predicciones
+            st.subheader("🌦️ Comparación de Predicciones")
+            
+            col1, col2 = st.columns(2)
+            
+            # Predicción del modelo ML
+            with col1:
+                st.markdown("### 🤖 Predicción del Modelo ML")
+                if pred.lower() == "rain":
+                    st.markdown(
+                        "<div style='background-color:#D0E8FF; padding:15px; border-radius:10px; text-align:center;'>"
+                        "<h2 style='color:#007BFF;'>🌧️ <b>Rain</b></h2>"
+                        "</div>",
+                        unsafe_allow_html=True,
+                    )
+                elif pred.lower() == "cloudy":
+                    st.markdown(
+                        "<div style='background-color:#E8E8E8; padding:15px; border-radius:10px; text-align:center;'>"
+                        "<h2 style='color:#555;'>☁️ <b>Cloudy</b></h2>"
+                        "</div>",
+                        unsafe_allow_html=True,
+                    )
+                elif pred.lower() == "clear":
+                    st.markdown(
+                        "<div style='background-color:#FFF4C2; padding:15px; border-radius:10px; text-align:center;'>"
+                        "<h2 style='color:#E0A800;'>☀️ <b>Clear</b></h2>"
+                        "</div>",
+                        unsafe_allow_html=True,
+                    )
+                else:
+                    st.markdown(
+                        f"<div style='background-color:#F8F9FA; padding:15px; border-radius:10px; text-align:center;'>"
+                        f"<h2>🔍 <b>{pred}</b></h2>"
+                        "</div>",
+                        unsafe_allow_html=True,
+                    )
+            
+            # Predicción de la API
+            with col2:
+                st.markdown("### 🌐 Predicción de Visual Crossing API")
+                if pred_api.lower() == "rain":
+                    st.markdown(
+                        "<div style='background-color:#D0E8FF; padding:15px; border-radius:10px; text-align:center;'>"
+                        "<h2 style='color:#007BFF;'>🌧️ <b>Rain</b></h2>"
+                        "</div>",
+                        unsafe_allow_html=True,
+                    )
+                elif pred_api.lower() == "cloudy":
+                    st.markdown(
+                        "<div style='background-color:#E8E8E8; padding:15px; border-radius:10px; text-align:center;'>"
+                        "<h2 style='color:#555;'>☁️ <b>Cloudy</b></h2>"
+                        "</div>",
+                        unsafe_allow_html=True,
+                    )
+                elif pred_api.lower() == "clear":
+                    st.markdown(
+                        "<div style='background-color:#FFF4C2; padding:15px; border-radius:10px; text-align:center;'>"
+                        "<h2 style='color:#E0A800;'>☀️ <b>Clear</b></h2>"
+                        "</div>",
+                        unsafe_allow_html=True,
+                    )
+                else:
+                    st.markdown(
+                        f"<div style='background-color:#F8F9FA; padding:15px; border-radius:10px; text-align:center;'>"
+                        f"<h2>🔍 <b>{pred_api}</b></h2>"
+                        "</div>",
+                        unsafe_allow_html=True,
+                    )
+            
+            # Indicador de coincidencia
+            if pred.lower() == pred_api.lower():
+                st.success(f"✅ **Coincidencia**: Ambos modelos predicen **{pred}**")
             else:
-                st.markdown(
-                    f"<div style='background-color:#F8F9FA; padding:15px; border-radius:10px; text-align:center;'>"
-                    f"<h2>🔍 Predicción más probable: <b>{pred}</b></h2>"
-                    "</div>",
-                    unsafe_allow_html=True,
-                )
+                st.warning(f"⚠️ **Diferencia**: Modelo ML predice **{pred}**, API predice **{pred_api}**")
 
             # ================= GRÁFICO DE BARRAS INTERACTIVO =================
-            st.markdown("### 📊 Distribución de probabilidades")
+            st.markdown("### 📊 Distribución de probabilidades del Modelo ML")
 
             # Crear DataFrame con las probabilidades
             df_probs = pd.DataFrame({
@@ -559,12 +629,45 @@ with tab2:
                         alt.Tooltip("Probabilidad:Q", title="Probabilidad (%)", format=".2f")
                     ]
                 )
-                .properties(width=600, height=400)
+                .properties(width=600, height=400, title="Probabilidades del Modelo ML")
                 .interactive()  # permite zoom y hover
             )
 
+            # Agregar marca para la predicción de la API si está disponible
+            if pred_api.lower() in [c.lower() for c in clases]:
+                # Obtener la probabilidad del modelo para la condición predicha por la API
+                prob_api_condicion = df_probs[df_probs["Condición"].str.lower() == pred_api.lower()]
+                if len(prob_api_condicion) > 0:
+                    prob_valor = prob_api_condicion["Probabilidad"].values[0]
+                    
+                    # Crear un DataFrame con la marca de la API
+                    df_api_mark = pd.DataFrame({
+                        "Condición": [pred_api],
+                        "Probabilidad": [prob_valor]
+                    })
+                    
+                    # Agregar marca visual (punto) para la predicción de la API
+                    api_mark = (
+                        alt.Chart(df_api_mark)
+                        .mark_point(size=200, color="red", shape="diamond", filled=True)
+                        .encode(
+                            x=alt.X("Condición:N"),
+                            y=alt.Y("Probabilidad:Q"),
+                            tooltip=[
+                                alt.Tooltip("Condición:N", title="Predicción API"),
+                                alt.Tooltip("Probabilidad:Q", title="Probabilidad ML (%)", format=".2f")
+                            ]
+                        )
+                    )
+                    
+                    chart = chart + api_mark
+
             # Mostrar el gráfico
             st.altair_chart(chart, use_container_width=True)
+            
+            # Nota sobre la marca de la API
+            if pred_api.lower() in [c.lower() for c in clases]:
+                st.caption("🔴 Marca roja (diamante): Predicción de la API de Visual Crossing")
 
 
             # Mostrar datos usados
