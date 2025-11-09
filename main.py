@@ -531,15 +531,20 @@ with tab2:
             # Obtener predicción de la API
             condicion_api_raw = hoy.get("conditions", "Unknown")
             pred_api = normalizar_condicion_api(condicion_api_raw)
+            
+            # Obtener la fecha del día de hoy desde los datos de la API para verificación
+            fecha_hoy_api = hoy.get("datetime", fecha_actual_str)
 
             # Mostrar comparación de predicciones
             st.subheader("🌦️ Comparación de Predicciones")
+            st.info(f"📅 **Fecha de predicción**: {fecha_actual_str} | **Datos del día anterior**: {fecha_ayer} (usado para feature 'rain_yesterday')")
             
             col1, col2 = st.columns(2)
             
             # Predicción del modelo ML
             with col1:
                 st.markdown("### 🤖 Predicción del Modelo ML")
+                st.caption(f"Basada en datos meteorológicos del {fecha_actual_str}")
                 if pred.lower() == "rain":
                     st.markdown(
                         "<div style='background-color:#D0E8FF; padding:15px; border-radius:10px; text-align:center;'>"
@@ -572,6 +577,7 @@ with tab2:
             # Predicción de la API
             with col2:
                 st.markdown("### 🌐 Predicción de Visual Crossing API")
+                st.caption(f"Condición climática para el {fecha_actual_str}")
                 if pred_api.lower() == "rain":
                     st.markdown(
                         "<div style='background-color:#D0E8FF; padding:15px; border-radius:10px; text-align:center;'>"
@@ -600,12 +606,6 @@ with tab2:
                         "</div>",
                         unsafe_allow_html=True,
                     )
-            
-            # Indicador de coincidencia
-            if pred.lower() == pred_api.lower():
-                st.success(f"✅ **Coincidencia**: Ambos modelos predicen **{pred}**")
-            else:
-                st.warning(f"⚠️ **Diferencia**: Modelo ML predice **{pred}**, API predice **{pred_api}**")
 
             # ================= GRÁFICO DE BARRAS INTERACTIVO =================
             st.markdown("### 📊 Distribución de probabilidades del Modelo ML")
