@@ -250,7 +250,7 @@ with tab1:
                     unsafe_allow_html=True,
                 )
 
-            # ================= GRÁFICO DE TORTA INTERACTIVO =================
+            # ================= GRÁFICO DE BARRAS INTERACTIVO =================
             st.markdown("### 📊 Distribución de probabilidades")
 
             # Crear DataFrame con las probabilidades
@@ -259,19 +259,20 @@ with tab1:
                 "Probabilidad": np.round(probs * 100, 2)
             })
 
-            # Crear gráfico de torta (pie chart) con Altair
+            # Crear gráfico de barras con Altair
             chart = (
                 alt.Chart(df_probs)
-                .mark_arc(innerRadius=50)
+                .mark_bar()
                 .encode(
-                    theta=alt.Theta("Probabilidad:Q", title="Probabilidad (%)"),
+                    x=alt.X("Condición:N", title="Condición climática", axis=alt.Axis(labelAngle=0)),
+                    y=alt.Y("Probabilidad:Q", title="Probabilidad (%)", scale=alt.Scale(domain=[0, 100])),
                     color=alt.Color("Condición:N", legend=alt.Legend(title="Condición climática")),
                     tooltip=[
                         alt.Tooltip("Condición:N", title="Condición"),
-                        alt.Tooltip("Probabilidad:Q", title="Probabilidad (%)")
+                        alt.Tooltip("Probabilidad:Q", title="Probabilidad (%)", format=".2f")
                     ]
                 )
-                .properties(width=400, height=400)
+                .properties(width=600, height=400)
                 .interactive()  # permite zoom y hover
             )
 
