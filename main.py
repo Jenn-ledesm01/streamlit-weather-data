@@ -463,108 +463,271 @@ with tab1:
     </div>
     """, unsafe_allow_html=True)
     
-# ==================== TAB 1: PREDICCIÓN ====================
+# ==================== TAB 2: PREDICCIÓN ====================
 with tab2:
-    st.header("Predicción del clima")
-
-    # Entradas del usuario
-    fecha_actual = st.date_input("📅 Seleccione la fecha (YYYY-MM-DD):", datetime.today().date())
-
-    # Ejecutar predicción automáticamente al seleccionar la fecha
+    st.header("🔮 Predicción del clima")
+    
+    st.markdown("""
+    Esta sección te permite hacer predicciones del clima usando el modelo de Machine Learning.
+    Puedes predecir el clima de **mañana** o comparar predicciones con **datos históricos** para ver el funcionamiento del modelo.
+    """)
+    
+    st.markdown("---")
+    
+    # ========== SECCIÓN 1: PREDICCIÓN PARA MAÑANA ==========
+    st.subheader("🌤️ Predicción para mañana")
+    st.markdown("""
+    Predicción del clima para **mañana** basada en los datos meteorológicos de **hoy** y **ayer**.
+    """)
+    
     try:
-        # Fechas
-        fecha_actual_str = fecha_actual.strftime("%Y-%m-%d")
-        fecha_ayer = (fecha_actual - timedelta(days=1)).strftime("%Y-%m-%d")
-        fecha_anteayer = (fecha_actual - timedelta(days=2)).strftime("%Y-%m-%d")
-
-        # Ciudad fija
+        # Calcular fechas para predicción de mañana
+        # Necesitamos: ayer (día-1), hoy (día actual), mañana (día+1 a predecir)
+        fecha_hoy = datetime.today().date()
+        fecha_ayer = fecha_hoy - timedelta(days=1)
+        fecha_anteayer = fecha_hoy - timedelta(days=2)
+        fecha_manana = fecha_hoy + timedelta(days=1)
+        
+        # Convertir a strings
+        fecha_hoy_str = fecha_hoy.strftime("%Y-%m-%d")
+        fecha_ayer_str = fecha_ayer.strftime("%Y-%m-%d")
+        fecha_anteayer_str = fecha_anteayer.strftime("%Y-%m-%d")
+        fecha_manana_str = fecha_manana.strftime("%Y-%m-%d")
+        
         location = "Mendoza,Argentina"
         
         # Obtener datos usando las API keys (con rotación automática)
-        # Necesitamos 3 días: día-2, día-1, y día seleccionado
-        with st.spinner("Obteniendo datos del clima..."):
-            data, api_key_usada, numero_key = obtener_datos_clima(location, fecha_anteayer, fecha_actual_str)
-
-        if len(data) < 3:
+        with st.spinner("Obteniendo datos del clima para predicción de mañana..."):
+            data_manana, api_key_usada, numero_key = obtener_datos_clima(
+                location, 
+                fecha_anteayer_str,  # día-2
+                fecha_hoy_str        # día actual
+            )
+        
+        if len(data_manana) < 2:
+            st.error("No se obtuvieron datos suficientes para predecir mañana.")
+        else:
+            # Extraer datos necesarios
+            # data_manana[0] = anteayer (para rain_yesterday)
+            # data_manana[1] = ayer (para features del modelo)
+            anteayer_manana = data_manana[0]
+            ayer_manana = data_manana[1]
+            
+            # Construir features para predicción de mañana
+            features_manana = {
+                "temp_mean": ayer_manana["temp"],
+                "feelslike_mean": ayer_manana["feelslike"],
+                "humidity_mean": ayer_manana["humidity"],
+                "dew_mean": ayer_manana["dew"],
+                "pressure_mean": ayer_manana["pressure"],
+                "windspeed_mean": ayer_manana["windspeed"],
+                "windgust_mean": ayer_manana["windgust"],
+                "winddir_mean": ayer_manana["winddir"],
+                "visibility_mean": ayer_manana["visibility"],
+                "solarradiation_mean": ayer_manana["solarradiation"],
+                "uvindex_mean": ayer_manana["uvindex"],
+                "cloudcover_mean": ayer_manana["cloudcover"],
+                "precip_sum": ayer_manana["precip"],
+                "snow_sum": ayer_manana["snow"],
+                "temp_range": ayer_manana["tempmax"] - ayer_manana["tempmin"],
+                "dew_point_diff": ayer_manana["temp"] - ayer_manana["dew"],
+                
+                # Features cíclicas (usando la fecha de mañana)
+                "month_sin": np.sin(2 * np.pi * fecha_manana.month / 12),
+                "month_cos": np.cos(2 * np.pi * fecha_manana.month / 12),
+                "dayofyear_sin": np.sin(2 * np.pi * fecha_manana.timetuple().tm_yday / 365),
+                "dayofyear_cos": np.cos(2 * np.pi * fecha_manana.timetuple().tm_yday / 365),
+                
+                # Lluvia ayer (usando anteayer)
+                "rain_yesterday": 1 if anteayer_manana["precip"] > 0 else 0,
+            }
+            
+            X_manana = pd.DataFrame([features_manana])
+            
+            # Cargar modelo y predecir
+            model = joblib.load("model_output/gradient_boosting_weather_model.pkl")
+            pred_manana = model.predict(X_manana)[0]
+            probs_manana = model.predict_proba(X_manana)[0]
+            clases_manana = model.classes_
+            
+            # Mostrar predicción
+            st.info(f"📅 **Predicción para**: {fecha_manana_str}")
+            # st.info(f"📅 **Predicción para**: {fecha_manana_str} | **Datos usados**: {fecha_ayer_str} (día-1) y {fecha_anteayer_str} (día-2)")
+            
+            # Mostrar predicción de manera visual
+            if pred_manana.lower() == "rain":
+                st.markdown(
+                    "<div style='background-color:#D0E8FF; padding:20px; border-radius:10px; text-align:center;'>"
+                    "<h2 style='color:#007BFF;'>🌧️ <b>Rain (Lluvia)</b></h2>"
+                    "<p style='color:#000000;'>Se espera lluvia para mañana</p>"
+                    "</div>",
+                    unsafe_allow_html=True,
+                )
+            elif pred_manana.lower() == "cloudy":
+                st.markdown(
+                    "<div style='background-color:#E8E8E8; padding:20px; border-radius:10px; text-align:center;'>"
+                    "<h2 style='color:#555;'>☁️ <b>Cloudy (Nublado)</b></h2>"
+                    "<p style='color:#000000;'>Se espera un día nublado mañana</p>"
+                    "</div>",
+                    unsafe_allow_html=True,
+                )
+            elif pred_manana.lower() == "clear":
+                st.markdown(
+                    "<div style='background-color:#FFF4C2; padding:20px; border-radius:10px; text-align:center;'>"
+                    "<h2 style='color:#E0A800;'>☀️ <b>Clear (Despejado)</b></h2>"
+                    "<p style='color:#000000;'>Se espera un día despejado mañana</p>"
+                    "</div>",
+                    unsafe_allow_html=True,
+                )
+            else:
+                st.markdown(
+                    f"<div style='background-color:#F8F9FA; padding:20px; border-radius:10px; text-align:center;'>"
+                    f"<h2>🔍 <b>{pred_manana}</b></h2>"
+                    "</div>",
+                    unsafe_allow_html=True,
+                )
+            
+            st.markdown("---")
+            
+            # Gráfico de probabilidades
+            st.markdown("### 📊 Distribución de probabilidades")
+            
+            df_probs_manana = pd.DataFrame({
+                "Condición": clases_manana,
+                "Probabilidad": np.round(probs_manana * 100, 2)
+            })
+            
+            chart_manana = (
+                alt.Chart(df_probs_manana)
+                .mark_bar()
+                .encode(
+                    x=alt.X("Condición:N", title="Condición climática", axis=alt.Axis(labelAngle=0)),
+                    y=alt.Y("Probabilidad:Q", title="Probabilidad (%)", scale=alt.Scale(domain=[0, 100])),
+                    color=alt.Color("Condición:N", legend=alt.Legend(title="Condición climática")),
+                    tooltip=[
+                        alt.Tooltip("Condición:N", title="Condición"),
+                        alt.Tooltip("Probabilidad:Q", title="Probabilidad (%)", format=".2f")
+                    ]
+                )
+                .properties(width=600, height=400, title="Probabilidades del Modelo ML para Mañana")
+                .interactive()
+            )
+            
+            st.altair_chart(chart_manana, use_container_width=True)
+            
+            # Mostrar datos usados (opcional)
+            with st.expander("📊 Ver datos usados para la predicción de mañana"):
+                st.write(X_manana)
+    
+    except Exception as e:
+        st.error(f"Error al obtener datos o predecir para mañana: {e}")
+    
+    st.markdown("---")
+    st.markdown("---")
+    
+    # ========== SECCIÓN 2: COMPARACIÓN CON DATOS HISTÓRICOS ==========
+    st.subheader("📅 Comparación con datos históricos")
+    st.markdown("""
+    Selecciona una fecha **pasada** o **actual** para comparar la predicción del modelo con los datos históricos reales.
+    """)
+    
+    # Selector de fecha con límite hasta hoy
+    fecha_seleccionada = st.date_input(
+        "📅 Seleccione una fecha histórica (YYYY-MM-DD):",
+        max_value=datetime.today().date(),  # LÍMITE: No permite fechas futuras
+        value=datetime.today().date()
+    )
+    
+    try:
+        # Calcular fechas necesarias
+        fecha_seleccionada_str = fecha_seleccionada.strftime("%Y-%m-%d")
+        fecha_ayer_hist = (fecha_seleccionada - timedelta(days=1)).strftime("%Y-%m-%d")
+        fecha_anteayer_hist = (fecha_seleccionada - timedelta(days=2)).strftime("%Y-%m-%d")
+        
+        location = "Mendoza,Argentina"
+        
+        # Obtener datos históricos
+        with st.spinner("Obteniendo datos históricos..."):
+            data_hist, api_key_usada_hist, numero_key_hist = obtener_datos_clima(
+                location,
+                fecha_anteayer_hist,
+                fecha_seleccionada_str
+            )
+        
+        if len(data_hist) < 3:
             st.error("No se obtuvieron datos suficientes (se necesitan 3 días: día-2, día-1, y día seleccionado).")
         else:
-            # Día-2, día-1, y día seleccionado
-            anteayer = data[0]  # día-2 (para rain_yesterday)
-            ayer = data[1]      # día-1 (para features del modelo ML)
-            dia_seleccionado = data[2]  # día seleccionado (para comparar con API)
-
-            # Construir la fila con los valores requeridos
-            # Usamos datos del día-1 (ayer) para predecir el día seleccionado
-            features = {
-                "temp_mean": ayer["temp"],
-                "feelslike_mean": ayer["feelslike"],
-                "humidity_mean": ayer["humidity"],
-                "dew_mean": ayer["dew"],
-                "pressure_mean": ayer["pressure"],
-                "windspeed_mean": ayer["windspeed"],
-                "windgust_mean": ayer["windgust"],
-                "winddir_mean": ayer["winddir"],
-                "visibility_mean": ayer["visibility"],
-                "solarradiation_mean": ayer["solarradiation"],
-                "uvindex_mean": ayer["uvindex"],
-                "cloudcover_mean": ayer["cloudcover"],
-                "precip_sum": ayer["precip"],
-                "snow_sum": ayer["snow"],
-                "temp_range": ayer["tempmax"] - ayer["tempmin"],
-                "dew_point_diff": ayer["temp"] - ayer["dew"],
-
-                # Features cíclicas (usando la fecha seleccionada, que es la que queremos predecir)
-                "month_sin": np.sin(2 * np.pi * fecha_actual.month / 12),
-                "month_cos": np.cos(2 * np.pi * fecha_actual.month / 12),
-                "dayofyear_sin": np.sin(2 * np.pi * fecha_actual.timetuple().tm_yday / 365),
-                "dayofyear_cos": np.cos(2 * np.pi * fecha_actual.timetuple().tm_yday / 365),
-
-                # Lluvia ayer (día-2, que es anteayer)
-                "rain_yesterday": 1 if anteayer["precip"] > 0 else 0,
-            }
-
-            X = pd.DataFrame([features])
-
-            # Cargar el modelo
-            model = joblib.load("model_output/gradient_boosting_weather_model.pkl")
-
-            # ================= PREDICCIÓN Y PROBABILIDADES =================
-            pred = model.predict(X)[0]
-            probs = model.predict_proba(X)[0]
-            clases = model.classes_
-
-            # Obtener predicción de la API (datos históricos del día seleccionado)
-            condicion_api_raw = dia_seleccionado.get("conditions", "Unknown")
-            pred_api = normalizar_condicion_api(condicion_api_raw)
+            # Extraer datos
+            anteayer_hist = data_hist[0]  # día-2 (para rain_yesterday)
+            ayer_hist = data_hist[1]       # día-1 (para features del modelo ML)
+            dia_seleccionado_hist = data_hist[2]  # día seleccionado (para comparar con API)
             
-            # Obtener la fecha del día seleccionado desde los datos de la API para verificación
-            fecha_dia_seleccionado = dia_seleccionado.get("datetime", fecha_actual_str)
-
-            # Mostrar comparación de predicciones
+            # Construir features para predicción histórica
+            features_hist = {
+                "temp_mean": ayer_hist["temp"],
+                "feelslike_mean": ayer_hist["feelslike"],
+                "humidity_mean": ayer_hist["humidity"],
+                "dew_mean": ayer_hist["dew"],
+                "pressure_mean": ayer_hist["pressure"],
+                "windspeed_mean": ayer_hist["windspeed"],
+                "windgust_mean": ayer_hist["windgust"],
+                "winddir_mean": ayer_hist["winddir"],
+                "visibility_mean": ayer_hist["visibility"],
+                "solarradiation_mean": ayer_hist["solarradiation"],
+                "uvindex_mean": ayer_hist["uvindex"],
+                "cloudcover_mean": ayer_hist["cloudcover"],
+                "precip_sum": ayer_hist["precip"],
+                "snow_sum": ayer_hist["snow"],
+                "temp_range": ayer_hist["tempmax"] - ayer_hist["tempmin"],
+                "dew_point_diff": ayer_hist["temp"] - ayer_hist["dew"],
+                
+                # Features cíclicas (usando la fecha seleccionada)
+                "month_sin": np.sin(2 * np.pi * fecha_seleccionada.month / 12),
+                "month_cos": np.cos(2 * np.pi * fecha_seleccionada.month / 12),
+                "dayofyear_sin": np.sin(2 * np.pi * fecha_seleccionada.timetuple().tm_yday / 365),
+                "dayofyear_cos": np.cos(2 * np.pi * fecha_seleccionada.timetuple().tm_yday / 365),
+                
+                # Lluvia ayer (usando día-2)
+                "rain_yesterday": 1 if anteayer_hist["precip"] > 0 else 0,
+            }
+            
+            X_hist = pd.DataFrame([features_hist])
+            
+            # Cargar modelo y predecir
+            model = joblib.load("model_output/gradient_boosting_weather_model.pkl")
+            pred_hist = model.predict(X_hist)[0]
+            probs_hist = model.predict_proba(X_hist)[0]
+            clases_hist = model.classes_
+            
+            # Obtener predicción real de la API
+            condicion_api_raw = dia_seleccionado_hist.get("conditions", "Unknown")
+            pred_api_hist = normalizar_condicion_api(condicion_api_raw)
+            
+            # Mostrar comparación
             st.subheader("🌦️ Comparación de Predicciones")
-            st.info(f"📅 **Fecha de predicción**: {fecha_actual_str} | **Datos usados para ML**: {fecha_ayer} (día-1) y {fecha_anteayer} (día-2 para 'rain_yesterday') | **Datos históricos para comparar**: {fecha_actual_str}")
+            st.info(f"📅 **Fecha de predicción**: {fecha_seleccionada_str} | **Datos usados para ML**: {fecha_ayer_hist} (día-1) y {fecha_anteayer_hist} (día-2)")
             
             col1, col2 = st.columns(2)
             
             # Predicción del modelo ML
             with col1:
                 st.markdown("### 🤖 Predicción del modelo")
-                st.caption(f"Predicción para el {fecha_actual_str} usando datos del {fecha_ayer} (día-1)")
-                if pred.lower() == "rain":
+                st.caption(f"Predicción para el {fecha_seleccionada_str} usando datos del {fecha_ayer_hist} (día-1)")
+                if pred_hist.lower() == "rain":
                     st.markdown(
                         "<div style='background-color:#D0E8FF; padding:15px; border-radius:10px; text-align:center;'>"
                         "<h2 style='color:#007BFF;'>🌧️ <b>Rain</b></h2>"
                         "</div>",
                         unsafe_allow_html=True,
                     )
-                elif pred.lower() == "cloudy":
+                elif pred_hist.lower() == "cloudy":
                     st.markdown(
                         "<div style='background-color:#E8E8E8; padding:15px; border-radius:10px; text-align:center;'>"
                         "<h2 style='color:#555;'>☁️ <b>Cloudy</b></h2>"
                         "</div>",
                         unsafe_allow_html=True,
                     )
-                elif pred.lower() == "clear":
+                elif pred_hist.lower() == "clear":
                     st.markdown(
                         "<div style='background-color:#FFF4C2; padding:15px; border-radius:10px; text-align:center;'>"
                         "<h2 style='color:#E0A800;'>☀️ <b>Clear</b></h2>"
@@ -574,30 +737,30 @@ with tab2:
                 else:
                     st.markdown(
                         f"<div style='background-color:#F8F9FA; padding:15px; border-radius:10px; text-align:center;'>"
-                        f"<h2>🔍 <b>{pred}</b></h2>"
+                        f"<h2>🔍 <b>{pred_hist}</b></h2>"
                         "</div>",
                         unsafe_allow_html=True,
                     )
             
-            # Predicción de la API
+            # Predicción real de la API
             with col2:
                 st.markdown("### 🌐 Datos históricos de Visual Crossing API")
-                st.caption(f"Condición climática histórica real del {fecha_actual_str}")
-                if pred_api.lower() == "rain":
+                st.caption(f"Condición climática histórica real del {fecha_seleccionada_str}")
+                if pred_api_hist.lower() == "rain":
                     st.markdown(
                         "<div style='background-color:#D0E8FF; padding:15px; border-radius:10px; text-align:center;'>"
                         "<h2 style='color:#007BFF;'>🌧️ <b>Rain</b></h2>"
                         "</div>",
                         unsafe_allow_html=True,
                     )
-                elif pred_api.lower() == "cloudy":
+                elif pred_api_hist.lower() == "cloudy":
                     st.markdown(
                         "<div style='background-color:#E8E8E8; padding:15px; border-radius:10px; text-align:center;'>"
                         "<h2 style='color:#555;'>☁️ <b>Cloudy</b></h2>"
                         "</div>",
                         unsafe_allow_html=True,
                     )
-                elif pred_api.lower() == "clear":
+                elif pred_api_hist.lower() == "clear":
                     st.markdown(
                         "<div style='background-color:#FFF4C2; padding:15px; border-radius:10px; text-align:center;'>"
                         "<h2 style='color:#E0A800;'>☀️ <b>Clear</b></h2>"
@@ -607,23 +770,23 @@ with tab2:
                 else:
                     st.markdown(
                         f"<div style='background-color:#F8F9FA; padding:15px; border-radius:10px; text-align:center;'>"
-                        f"<h2>🔍 <b>{pred_api}</b></h2>"
+                        f"<h2>🔍 <b>{pred_api_hist}</b></h2>"
                         "</div>",
                         unsafe_allow_html=True,
                     )
-
-            # ================= GRÁFICO DE BARRAS INTERACTIVO =================
+            
+            st.markdown("---")
+            
+            # Gráfico de probabilidades con marca de la API
             st.markdown("### 📊 Distribución de probabilidades del modelo")
-
-            # Crear DataFrame con las probabilidades
-            df_probs = pd.DataFrame({
-                "Condición": clases,
-                "Probabilidad": np.round(probs * 100, 2)
+            
+            df_probs_hist = pd.DataFrame({
+                "Condición": clases_hist,
+                "Probabilidad": np.round(probs_hist * 100, 2)
             })
-
-            # Crear gráfico de barras con Altair
-            chart = (
-                alt.Chart(df_probs)
+            
+            chart_hist = (
+                alt.Chart(df_probs_hist)
                 .mark_bar()
                 .encode(
                     x=alt.X("Condición:N", title="Condición climática", axis=alt.Axis(labelAngle=0)),
@@ -635,23 +798,20 @@ with tab2:
                     ]
                 )
                 .properties(width=600, height=400, title="Probabilidades del Modelo ML")
-                .interactive()  # permite zoom y hover
+                .interactive()
             )
-
+            
             # Agregar marca para la predicción de la API si está disponible
-            if pred_api.lower() in [c.lower() for c in clases]:
-                # Obtener la probabilidad del modelo para la condición predicha por la API
-                prob_api_condicion = df_probs[df_probs["Condición"].str.lower() == pred_api.lower()]
+            if pred_api_hist.lower() in [c.lower() for c in clases_hist]:
+                prob_api_condicion = df_probs_hist[df_probs_hist["Condición"].str.lower() == pred_api_hist.lower()]
                 if len(prob_api_condicion) > 0:
                     prob_valor = prob_api_condicion["Probabilidad"].values[0]
                     
-                    # Crear un DataFrame con la marca de la API
                     df_api_mark = pd.DataFrame({
-                        "Condición": [pred_api],
+                        "Condición": [pred_api_hist],
                         "Probabilidad": [prob_valor]
                     })
                     
-                    # Agregar marca visual (punto) para la predicción de la API
                     api_mark = (
                         alt.Chart(df_api_mark)
                         .mark_point(size=200, color="red", shape="diamond", filled=True)
@@ -665,22 +825,19 @@ with tab2:
                         )
                     )
                     
-                    chart = chart + api_mark
-
-            # Mostrar el gráfico
-            st.altair_chart(chart, use_container_width=True)
+                    chart_hist = chart_hist + api_mark
             
-            # Nota sobre la marca de la API
-            if pred_api.lower() in [c.lower() for c in clases]:
+            st.altair_chart(chart_hist, use_container_width=True)
+            
+            if pred_api_hist.lower() in [c.lower() for c in clases_hist]:
                 st.caption("🔴 Marca roja (diamante): Predicción de la API de Visual Crossing")
-
-
+            
             # Mostrar datos usados
-            with st.expander("📊 Ver datos usados para la predicción"):
-                st.write(X)
-
+            with st.expander("📊 Ver datos usados para la predicción histórica"):
+                st.write(X_hist)
+    
     except Exception as e:
-        st.error(f"Error al obtener datos o predecir: {e}")
+        st.error(f"Error al obtener datos históricos o predecir: {e}")
 
 # ==================== TAB 2: VISUALIZACIONES ====================
 with tab3:    
@@ -818,7 +975,7 @@ with tab3:
                        title='Temperatura Promedio (°C)'),
                 color=alt.Color('temp_avg_dia:Q',
                                scale=alt.Scale(scheme='redyellowblue', reverse=True),
-                               legend=None),
+                               legend=alt.Legend(title='Temperatura (°C)')),
                 tooltip=[
                     alt.Tooltip('mes_nombre:N', title='Mes'),
                     alt.Tooltip('temp_avg_dia:Q', title='Temp. Promedio (°C)', format='.1f'),
@@ -1103,7 +1260,7 @@ with tab3:
             """)
         
         # ========== VISUALIZACIÓN 6: HUMEDAD VS TEMPERATURA ==========
-        elif "6. Relación humedad y temperatura" in opcion:
+        elif "Relación humedad y temperatura" in opcion:
             st.header("💧 Relación entre humedad y temperatura")
             st.markdown("""
             **¿Qué muestra?** Cómo se relaciona la humedad con la temperatura en diferentes estaciones.  
