@@ -36,7 +36,7 @@ def obtener_datos_clima(location, fecha_ayer, fecha_actual):
             
         except requests.exceptions.HTTPError as e:
             if response.status_code == 429:  # Too many requests
-                st.warning(f"API Key {idx + 1} sin créditos. Probando siguiente...")
+                #st.warning(f"API Key {idx + 1} sin créditos. Probando siguiente...")
                 continue
             else:
                 raise e
