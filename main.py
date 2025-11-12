@@ -879,6 +879,7 @@ with tab3:
                 df['mes'] = df['dia'].dt.month
                 df['mes_nombre'] = df['dia'].dt.strftime('%B')
                 df['estacion'] = df['dia'].apply(obtener_estacion)
+                df['año'] = df['dia'].dt.year
                 
                 # Detectar lluvia por hora
                 lluvia_keywords = [
@@ -903,6 +904,9 @@ with tab3:
                 df_dias.columns = ['dia', 'estacion', 'mes', 'mes_nombre', 'temp_max_dia', 'temp_min_dia', 
                                    'temp_avg_dia', 'feelslike_avg', 'humidity_avg', 'lluvia_dia', 'conditions']
                 
+                # Agregar columna de año DESPUÉS del aplanamiento
+                df_dias['año'] = df_dias['dia'].dt.year
+                
                 # Crear condición_dia categórica
                 df_dias['condicion_dia'] = df_dias['lluvia_dia'].map({False: 'Seco', True: 'Lluvioso'})
                 
@@ -926,6 +930,10 @@ with tab3:
         df_dias = st.session_state.df_dias
         df_original = st.session_state.df_original
         orden_estaciones = st.session_state.orden_estaciones
+        
+        # Obtener fechas límite del dataset
+        fecha_min = df_dias['dia'].min()
+        fecha_max = df_dias['dia'].max()
         
         # ========== SELECTOR DE VISUALIZACIÓN ==========
         st.subheader("🎯 Selecciona qué información deseas explorar:")
@@ -953,8 +961,24 @@ with tab3:
             **¿Para qué sirve?** Te ayuda a planificar viajes o actividades sabiendo qué meses son más calurosos o fríos.
             """)
             
+            # Filtro de año
+            año_seleccionado = st.selectbox(
+                "📆 Selecciona el año:",
+                options=["Promedio general", 2023, 2024, 2025],
+                index=0,
+                key="año_grafico1"
+            )
+            
+            # Filtrar datos según selección
+            if año_seleccionado == "Promedio general":
+                df_filtrado = df_dias.copy()
+                titulo_año = "Promedio General (2023-2025)"
+            else:
+                df_filtrado = df_dias[df_dias['año'] == año_seleccionado].copy()
+                titulo_año = str(año_seleccionado)
+            
             # Agrupar por mes
-            df_mensual = df_dias.groupby('mes', as_index=False).agg({
+            df_mensual = df_filtrado.groupby('mes', as_index=False).agg({
                 'temp_avg_dia': 'mean',
                 'temp_max_dia': 'mean',
                 'temp_min_dia': 'mean'
@@ -985,21 +1009,24 @@ with tab3:
             ).properties(
                 width=800,
                 height=400,
-                title='Temperatura Promedio Mensual en Mendoza'
+                title=f'Temperatura Promedio Mensual en Mendoza - {titulo_año}'
             )
             
             st.altair_chart(chart, use_container_width=True)
             
             # Insight
-            mes_caluroso = df_mensual.loc[df_mensual['temp_avg_dia'].idxmax()]
-            mes_frio = df_mensual.loc[df_mensual['temp_avg_dia'].idxmin()]
-            
-            st.info(f"""
-            📌 **Conclusión:**  
-            - El mes **más caluroso** es **{mes_caluroso['mes_nombre']}** con {mes_caluroso['temp_avg_dia']:.1f}°C en promedio.  
-            - El mes **más frío** es **{mes_frio['mes_nombre']}** con {mes_frio['temp_avg_dia']:.1f}°C en promedio.  
-            - La diferencia entre el mes más caluroso y el más frío es de **{mes_caluroso['temp_avg_dia'] - mes_frio['temp_avg_dia']:.1f}°C**.
-            """)
+            if len(df_mensual) > 0:
+                mes_caluroso = df_mensual.loc[df_mensual['temp_avg_dia'].idxmax()]
+                mes_frio = df_mensual.loc[df_mensual['temp_avg_dia'].idxmin()]
+                
+                st.info(f"""
+                📌 **Conclusión ({titulo_año}):**  
+                - El mes **más caluroso** es **{mes_caluroso['mes_nombre']}** con {mes_caluroso['temp_avg_dia']:.1f}°C en promedio.  
+                - El mes **más frío** es **{mes_frio['mes_nombre']}** con {mes_frio['temp_avg_dia']:.1f}°C en promedio.  
+                - La diferencia entre el mes más caluroso y el más frío es de **{mes_caluroso['temp_avg_dia'] - mes_frio['temp_avg_dia']:.1f}°C**.
+                """)
+            else:
+                st.warning("No hay datos disponibles para el año seleccionado.")
         
         # ========== VISUALIZACIÓN 2: DÍAS DE LLUVIA POR MES ==========
         elif "Días de lluvia por mes" in opcion:
@@ -1009,8 +1036,24 @@ with tab3:
             **¿Para qué sirve?** Ideal para planificar actividades al aire libre y evitar meses lluviosos.
             """)
             
+            # Filtro de año
+            año_seleccionado = st.selectbox(
+                "📆 Selecciona el año:",
+                options=["Todos", 2023, 2024, 2025],
+                index=0,
+                key="año_grafico2"
+            )
+            
+            # Filtrar datos según selección
+            if año_seleccionado == "Todos":
+                df_filtrado = df_dias.copy()
+                titulo_año = "Todos los años (2023-2025)"
+            else:
+                df_filtrado = df_dias[df_dias['año'] == año_seleccionado].copy()
+                titulo_año = str(año_seleccionado)
+            
             # Contar días lluviosos por mes
-            df_lluvia_mes = df_dias[df_dias['lluvia_dia'] == True].groupby('mes').size().reset_index(name='dias_lluvia')
+            df_lluvia_mes = df_filtrado[df_filtrado['lluvia_dia'] == True].groupby('mes').size().reset_index(name='dias_lluvia')
             
             # Completar meses sin lluvia
             todos_meses = pd.DataFrame({'mes': range(1, 13)})
@@ -1035,7 +1078,7 @@ with tab3:
             ).properties(
                 width=800,
                 height=400,
-                title='Días con Lluvia por Mes en Mendoza'
+                title=f'Días con Lluvia por Mes en Mendoza - {titulo_año}'
             )
             
             st.altair_chart(chart, use_container_width=True)
@@ -1043,14 +1086,21 @@ with tab3:
             # Insight
             total_dias_lluvia = df_lluvia_mes['dias_lluvia'].sum()
             mes_mas_lluvioso = df_lluvia_mes.loc[df_lluvia_mes['dias_lluvia'].idxmax()]
-            mes_mas_seco = df_lluvia_mes[df_lluvia_mes['dias_lluvia'] > 0].loc[df_lluvia_mes[df_lluvia_mes['dias_lluvia'] > 0]['dias_lluvia'].idxmin()] if len(df_lluvia_mes[df_lluvia_mes['dias_lluvia'] > 0]) > 0 else mes_mas_lluvioso
+            meses_con_lluvia = df_lluvia_mes[df_lluvia_mes['dias_lluvia'] > 0]
             
-            st.info(f"""
-            📌 **Conclusión:**  
-            - En total llovió **{int(total_dias_lluvia)} días** durante el año registrado.  
-            - El mes **más lluvioso** fue **{mes_mas_lluvioso['mes_nombre']}** con {int(mes_mas_lluvioso['dias_lluvia'])} días de lluvia.  
-            - Mendoza tiene un clima predominantemente **seco**, ideal para actividades al aire libre la mayor parte del año.
-            """)
+            if len(meses_con_lluvia) > 0:
+                mes_mas_seco = meses_con_lluvia.loc[meses_con_lluvia['dias_lluvia'].idxmin()]
+                st.info(f"""
+                📌 **Conclusión ({titulo_año}):**  
+                - En total llovió **{int(total_dias_lluvia)} días** durante el período registrado.  
+                - El mes **más lluvioso** fue **{mes_mas_lluvioso['mes_nombre']}** con {int(mes_mas_lluvioso['dias_lluvia'])} días de lluvia.  
+                - Mendoza tiene un clima predominantemente **seco**, ideal para actividades al aire libre la mayor parte del año.
+                """)
+            else:
+                st.info(f"""
+                📌 **Conclusión ({titulo_año}):**  
+                - No se registraron días de lluvia durante este período.
+                """)
         
         # ========== VISUALIZACIÓN 3: DISTRIBUCIÓN DE CONDICIONES CLIMÁTICAS ==========
         elif "Distribución de condiciones climáticas" in opcion:
@@ -1059,6 +1109,14 @@ with tab3:
             **¿Qué muestra?** La proporción de días despejados, nublados y lluviosos en cada estación del año.  
             **¿Para qué sirve?** Para entender cómo varía el clima según la estación.
             """)
+            
+            # Filtro de estación
+            estacion_seleccionada = st.selectbox(
+                "🍂 Selecciona la estación:",
+                options=["Todas", "Verano", "Otoño", "Invierno", "Primavera"],
+                index=0,
+                key="estacion_grafico3"
+            )
             
             # Clasificar condiciones
             def clasificar_condicion(cond):
@@ -1076,8 +1134,18 @@ with tab3:
             
             df_dias['condicion_simple'] = df_dias['conditions'].apply(clasificar_condicion)
             
+            # Filtrar datos según selección
+            if estacion_seleccionada == "Todas":
+                df_filtrado = df_dias.copy()
+                titulo_estacion = "Todas las estaciones"
+                estaciones_mostrar = orden_estaciones
+            else:
+                df_filtrado = df_dias[df_dias['estacion'] == estacion_seleccionada].copy()
+                titulo_estacion = estacion_seleccionada
+                estaciones_mostrar = [estacion_seleccionada]
+            
             # Contar por estación
-            df_condiciones = df_dias.groupby(['estacion', 'condicion_simple']).size().reset_index(name='cantidad')
+            df_condiciones = df_filtrado.groupby(['estacion', 'condicion_simple']).size().reset_index(name='cantidad')
             
             # Gráfico de barras apiladas
             chart = alt.Chart(df_condiciones).mark_bar().encode(
@@ -1101,7 +1169,7 @@ with tab3:
             ).properties(
                 width=800,
                 height=400,
-                title='Distribución de Condiciones Climáticas por Estación'
+                title=f'Distribución de Condiciones Climáticas - {titulo_estacion}'
             )
             
             st.altair_chart(chart, use_container_width=True)
@@ -1113,8 +1181,8 @@ with tab3:
                 axis=1
             )
             
-            st.info("""
-            📌 **Conclusión:**  
+            st.info(f"""
+            📌 **Conclusión ({titulo_estacion}):**  
             - Mendoza tiene un clima predominantemente **despejado** durante todo el año.  
             - Los días **nublados** son más frecuentes en **invierno**.  
             - La **lluvia** es más común en los meses de **verano**, aunque sigue siendo poco frecuente.
@@ -1128,8 +1196,19 @@ with tab3:
             **¿Para qué sirve?** Para entender por qué a veces hace más calor o frío de lo que indica el termómetro.
             """)
             
+            # Filtro de año
+            año_seleccionado = st.selectbox(
+                "📆 Selecciona el año:",
+                options=[2023, 2024, 2025],
+                index=1,
+                key="año_grafico4"
+            )
+            
+            # Filtrar datos según selección
+            df_filtrado = df_dias[df_dias['año'] == año_seleccionado].copy()
+            
             # Promediar por mes
-            df_feels = df_dias.groupby('mes', as_index=False).agg({
+            df_feels = df_filtrado.groupby('mes', as_index=False).agg({
                 'temp_avg_dia': 'mean',
                 'feelslike_avg': 'mean'
             }).round(2)
@@ -1174,20 +1253,23 @@ with tab3:
             ).properties(
                 width=800,
                 height=400,
-                title='Comparación: Temperatura Real vs Sensación Térmica'
+                title=f'Comparación: Temperatura Real vs Sensación Térmica - {año_seleccionado}'
             )
             
             st.altair_chart(chart, use_container_width=True)
             
             # Calcular diferencia promedio
-            diferencia_prom = abs(df_feels['temp_avg_dia'] - df_feels['feelslike_avg']).mean()
-            
-            st.info(f"""
-            📌 **Conclusión:**  
-            - En promedio, la **diferencia** entre temperatura real y sensación térmica es de **{diferencia_prom:.1f}°C**.  
-            - La **humedad** y el **viento** son los principales factores que afectan la sensación térmica.  
-            - En **verano**, la sensación térmica suele ser mayor debido a la humedad.
-            """)
+            if len(df_feels) > 0:
+                diferencia_prom = abs(df_feels['temp_avg_dia'] - df_feels['feelslike_avg']).mean()
+                
+                st.info(f"""
+                📌 **Conclusión ({año_seleccionado}):**  
+                - En promedio, la **diferencia** entre temperatura real y sensación térmica es de **{diferencia_prom:.1f}°C**.  
+                - La **humedad** y el **viento** son los principales factores que afectan la sensación térmica.  
+                - En **verano**, la sensación térmica suele ser mayor debido a la humedad.
+                """)
+            else:
+                st.warning("No hay suficientes datos para el año seleccionado.")
         
         # ========== VISUALIZACIÓN 5: TEMPERATURAS EXTREMAS ==========
         elif "Temperaturas extremas del año" in opcion:
@@ -1197,8 +1279,19 @@ with tab3:
             **¿Para qué sirve?** Para entender el rango de temperaturas que puedes esperar en cada época del año.
             """)
             
+            # Filtro de año
+            año_seleccionado = st.selectbox(
+                "📆 Selecciona el año:",
+                options=[2023, 2024, 2025],
+                index=1,
+                key="año_grafico5"
+            )
+            
+            # Filtrar datos según selección
+            df_filtrado = df_dias[df_dias['año'] == año_seleccionado].copy()
+            
             # Agrupar por mes
-            df_extremos = df_dias.groupby('mes', as_index=False).agg({
+            df_extremos = df_filtrado.groupby('mes', as_index=False).agg({
                 'temp_max_dia': 'mean',
                 'temp_min_dia': 'mean'
             }).round(2)
@@ -1243,21 +1336,24 @@ with tab3:
             ).properties(
                 width=800,
                 height=400,
-                title='Temperaturas Máximas y Mínimas Promedio por Mes'
+                title=f'Temperaturas Máximas y Mínimas Promedio por Mes - {año_seleccionado}'
             )
             
             st.altair_chart(chart, use_container_width=True)
             
             # Calcular amplitud térmica
-            df_extremos['amplitud'] = df_extremos['temp_max_dia'] - df_extremos['temp_min_dia']
-            mes_mayor_amplitud = df_extremos.loc[df_extremos['amplitud'].idxmax()]
-            
-            st.info(f"""
-            📌 **Conclusión:**  
-            - El mes con **mayor amplitud térmica** es **{meses_nombres[mes_mayor_amplitud['mes']-1]}** con {mes_mayor_amplitud['amplitud']:.1f}°C de diferencia entre máxima y mínima.  
-            - Mendoza tiene un clima con **amplitudes térmicas significativas**, especialmente en primavera y otoño.  
-            - Es importante llevar ropa **adecuada para cambios de temperatura** durante el día.
-            """)
+            if len(df_extremos) > 0:
+                df_extremos['amplitud'] = df_extremos['temp_max_dia'] - df_extremos['temp_min_dia']
+                mes_mayor_amplitud = df_extremos.loc[df_extremos['amplitud'].idxmax()]
+                
+                st.info(f"""
+                📌 **Conclusión ({año_seleccionado}):**  
+                - El mes con **mayor amplitud térmica** es **{meses_nombres[mes_mayor_amplitud['mes']-1]}** con {mes_mayor_amplitud['amplitud']:.1f}°C de diferencia entre máxima y mínima.  
+                - Mendoza tiene un clima con **amplitudes térmicas significativas**, especialmente en primavera y otoño.  
+                - Es importante llevar ropa **adecuada para cambios de temperatura** durante el día.
+                """)
+            else:
+                st.warning("No hay suficientes datos para el año seleccionado.")
         
         # ========== VISUALIZACIÓN 6: HUMEDAD VS TEMPERATURA ==========
         elif "Relación humedad y temperatura" in opcion:
@@ -1267,8 +1363,24 @@ with tab3:
             **¿Para qué sirve?** Para entender por qué algunos días calurosos se sienten más "pesados" que otros.
             """)
             
+            # Filtro de estación
+            estacion_seleccionada = st.selectbox(
+                "🍂 Selecciona la estación:",
+                options=["Todas", "Verano", "Otoño", "Invierno", "Primavera"],
+                index=0,
+                key="estacion_grafico6"
+            )
+            
+            # Filtrar datos según selección
+            if estacion_seleccionada == "Todas":
+                df_filtrado = df_dias.copy()
+                titulo_estacion = "Todas las estaciones"
+            else:
+                df_filtrado = df_dias[df_dias['estacion'] == estacion_seleccionada].copy()
+                titulo_estacion = estacion_seleccionada
+            
             # Tomar muestra para mejor visualización
-            df_sample = df_dias.sample(min(500, len(df_dias)))
+            df_sample = df_filtrado.sample(min(500, len(df_filtrado)))
             
             # Gráfico de dispersión
             chart = alt.Chart(df_sample).mark_circle(size=60, opacity=0.6).encode(
@@ -1291,13 +1403,13 @@ with tab3:
             ).properties(
                 width=800,
                 height=400,
-                title='Relación entre Temperatura y Humedad por Estación'
+                title=f'Relación entre Temperatura y Humedad - {titulo_estacion}'
             ).interactive()
             
             st.altair_chart(chart, use_container_width=True)
             
-            st.info("""
-            📌 **Conclusión:**  
+            st.info(f"""
+            📌 **Conclusión ({titulo_estacion}):**  
             - En **verano**, la combinación de alta temperatura y humedad genera una sensación térmica más elevada.  
             - En **invierno**, la baja humedad hace que el frío se sienta más seco y penetrante.  
             - La humedad promedio en Mendoza es relativamente **baja** comparada con otras regiones de Argentina.
@@ -1311,56 +1423,100 @@ with tab3:
             **¿Para qué sirve?** Para visualizar claramente las cuatro estaciones y sus transiciones.
             """)
             
-            # Ordenar por fecha
-            df_evolucion = df_dias.sort_values('dia').copy()
-            df_evolucion['dia_año'] = df_evolucion['dia'].dt.dayofyear
+            # Filtros de fecha
+            col1, col2 = st.columns(2)
+            with col1:
+                fecha_desde = st.date_input(
+                    "📅 Fecha desde:",
+                    value=fecha_min,
+                    min_value=fecha_min,
+                    max_value=fecha_max,
+                    key="fecha_desde_grafico7"
+                )
+            with col2:
+                fecha_hasta = st.date_input(
+                    "📅 Fecha hasta:",
+                    value=fecha_max,
+                    min_value=fecha_min,
+                    max_value=fecha_max,
+                    key="fecha_hasta_grafico7"
+                )
             
-            # Crear gráfico de área
-            base = alt.Chart(df_evolucion).encode(
-                x=alt.X('dia:T', 
-                       title='Fecha',
-                       axis=alt.Axis(format='%b')),
-            )
+            # Validar que fecha_desde sea menor que fecha_hasta
+            if fecha_desde > fecha_hasta:
+                st.error("⚠️ La fecha 'desde' debe ser anterior a la fecha 'hasta'.")
+                fecha_desde, fecha_hasta = fecha_hasta, fecha_desde
             
-            # Área para rango min-max
-            area = base.mark_area(opacity=0.3, color='#95A5A6').encode(
-                y=alt.Y('temp_min_dia:Q', title='Temperatura (°C)'),
-                y2='temp_max_dia:Q'
-            )
+            # Convertir a datetime para filtrar
+            fecha_desde_dt = pd.to_datetime(fecha_desde)
+            fecha_hasta_dt = pd.to_datetime(fecha_hasta)
             
-            # Línea para temperatura promedio
-            line = base.mark_line(color='#E74C3C', strokeWidth=2).encode(
-                y=alt.Y('temp_avg_dia:Q', title='Temperatura (°C)'),
-                tooltip=[
-                    alt.Tooltip('dia:T', title='Fecha', format='%Y-%m-%d'),
-                    alt.Tooltip('temp_avg_dia:Q', title='Temp. Promedio (°C)', format='.1f'),
-                    alt.Tooltip('temp_max_dia:Q', title='Temp. Máxima (°C)', format='.1f'),
-                    alt.Tooltip('temp_min_dia:Q', title='Temp. Mínima (°C)', format='.1f'),
-                    alt.Tooltip('estacion:N', title='Estación')
-                ]
-            )
+            # Filtrar datos según selección
+            df_filtrado = df_dias[
+                (df_dias['dia'] >= fecha_desde_dt) & 
+                (df_dias['dia'] <= fecha_hasta_dt)
+            ].copy()
             
-            chart = (area + line).properties(
-                width=800,
-                height=400,
-                title='Evolución de la Temperatura en Mendoza'
-            ).interactive()
-            
-            st.altair_chart(chart, use_container_width=True)
-            
-            st.info("""
-            📌 **Conclusión:**  
-            - Se observa claramente el patrón de las **cuatro estaciones**.  
-            - La transición de **invierno a verano** es más gradual que la de verano a invierno.  
-            - El área sombreada muestra la **amplitud térmica diaria** (diferencia entre máxima y mínima).
-            """)
+            if len(df_filtrado) == 0:
+                st.warning("No hay datos disponibles para el rango de fechas seleccionado.")
+            else:
+                # Ordenar por fecha
+                df_evolucion = df_filtrado.sort_values('dia').copy()
+                df_evolucion['dia_año'] = df_evolucion['dia'].dt.dayofyear
+                
+                # Crear gráfico de área
+                base = alt.Chart(df_evolucion).encode(
+                    x=alt.X('dia:T', 
+                           title='Fecha',
+                           axis=alt.Axis(format='%b %Y')),
+                )
+                
+                # Área para rango min-max
+                area = base.mark_area(opacity=0.3, color='#95A5A6').encode(
+                    y=alt.Y('temp_min_dia:Q', title='Temperatura (°C)'),
+                    y2='temp_max_dia:Q'
+                )
+                
+                # Línea para temperatura promedio
+                line = base.mark_line(color='#E74C3C', strokeWidth=2).encode(
+                    y=alt.Y('temp_avg_dia:Q', title='Temperatura (°C)'),
+                    tooltip=[
+                        alt.Tooltip('dia:T', title='Fecha', format='%Y-%m-%d'),
+                        alt.Tooltip('temp_avg_dia:Q', title='Temp. Promedio (°C)', format='.1f'),
+                        alt.Tooltip('temp_max_dia:Q', title='Temp. Máxima (°C)', format='.1f'),
+                        alt.Tooltip('temp_min_dia:Q', title='Temp. Mínima (°C)', format='.1f'),
+                        alt.Tooltip('estacion:N', title='Estación')
+                    ]
+                )
+                
+                chart = (area + line).properties(
+                    width=800,
+                    height=400,
+                    title=f'Evolución de la Temperatura en Mendoza ({fecha_desde.strftime("%d/%m/%Y")} - {fecha_hasta.strftime("%d/%m/%Y")})'
+                ).interactive()
+                
+                st.altair_chart(chart, use_container_width=True)
+                
+                # Calcular estadísticas del período
+                temp_max_periodo = df_evolucion['temp_max_dia'].max()
+                temp_min_periodo = df_evolucion['temp_min_dia'].min()
+                temp_avg_periodo = df_evolucion['temp_avg_dia'].mean()
+                
+                st.info(f"""
+                📌 **Conclusión del período seleccionado:**  
+                - Se observa claramente el patrón de las **cuatro estaciones** en el período visualizado.  
+                - Temperatura **máxima** registrada: **{temp_max_periodo:.1f}°C**  
+                - Temperatura **mínima** registrada: **{temp_min_periodo:.1f}°C**  
+                - Temperatura **promedio** del período: **{temp_avg_periodo:.1f}°C**  
+                - El área sombreada muestra la **amplitud térmica diaria** (diferencia entre máxima y mínima).
+                """)
         
         # ========== SECCIÓN ADICIONAL: DATOS CRUDOS ==========
         st.markdown("---")
         with st.expander("📋 Ver datos completos en tabla"):
             st.subheader("Datos agregados por día")
             st.dataframe(
-                df_dias[['dia', 'estacion', 'temp_max_dia', 'temp_min_dia', 
+                df_dias[['dia', 'año', 'estacion', 'temp_max_dia', 'temp_min_dia', 
                         'temp_avg_dia', 'humidity_avg', 'condicion_dia', 'conditions']].sort_values('dia', ascending=False),
                 use_container_width=True
             )
